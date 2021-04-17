@@ -10,6 +10,18 @@ void foo(int waitfor) {
     std::cout << "method foo waited in thread = " << std::this_thread::get_id() << " for " << waitfor << " ms." << std::endl;
 }
 
+void bar() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::cout << "method bar executed in thread = " << std::this_thread::get_id() << std::endl;
+}
+
+void resolveInfo() {
+    std::cout << "promise p3 was resolved" << std::endl;
+}
+void rejectInfo() {
+    std::cout << "promise p3 was rejected" << std::endl;
+}
+
 int main()
 {
     std::cout << "main thread ID: " << std::this_thread::get_id() << std::endl;
@@ -29,14 +41,30 @@ int main()
         throw 666; //reject promise by throwing a value
     });
 
-    //Third promise (resolving) there is no waiting handler
+    //Third promise resolving method with an argument
     crows::Promise<void, int> p3(foo, 777);
 
-    auto t = p1.then([](int i) { std::cout << "promise 1 resolved, then result = " << i << std::endl; });
+    //Fourth promise (resolving) bar method, there is no waiting handler
+    crows::Promise<void>p4(bar);
 
+    //wait for promise p1, handle resolve
+    auto t = p1.then(
+        [](int i) { std::cout << "promise 1 resolved, then result = " << i << std::endl; }
+    );
+
+    //wait for promise p2, handle both resolve and reject
     auto tt = p2.then(
         [](int i) { std::cout << "promise 2 was resolved, then result = " << i << std::endl; },
         [](int i) { std::cout << "promise 2 was rejected, then result = " << i << std::endl; }
+    );
+
+    //wait for promise p3, handle both resolve and reject and perform chaining
+    auto tt3 = p3.then(
+        resolveInfo,
+        rejectInfo
+    ).then(
+        resolveInfo,
+        rejectInfo
     );
 
     auto end = std::chrono::system_clock::now();

@@ -2,7 +2,7 @@
 #include <future>
 #include <iostream>
 
-namespace crows
+namespace crows 
 {
 	template<typename T, typename... Args>
 	class Promise {
@@ -18,9 +18,9 @@ namespace crows
 		}
 
 		template<typename Callback, typename RejectCallback>
-		Promise<typename std::result_of<Callback(T)>::type>
+		Promise<std::invoke_result_t<Callback, T>>
 		then(Callback&& callback, RejectCallback&& rejectCallback) {
-			return Promise<decltype(callback(future.get()))>(
+			return Promise<std::invoke_result_t<Callback, T>>(
 				this->async([this, &callback, &rejectCallback]() {
 				try {
 					this->status = Status::pResolved;
@@ -36,9 +36,9 @@ namespace crows
 			}));
 		}
 		template<typename Callback>
-		Promise<typename std::result_of<Callback(T)>::type>
+		Promise<std::invoke_result_t<Callback, T>>
 		then(Callback&& callback) {
-			return Promise<decltype(callback(future.get()))>(
+			return Promise<std::invoke_result_t<Callback, T>>(
 				this->async([this, &callback]() {
 				try {
 					this->status = Status::pResolved;
@@ -49,7 +49,7 @@ namespace crows
 				}
 			}));
 		}
-
+		
 	private:
 		enum class Status {
 			pPending = 0,
@@ -59,13 +59,15 @@ namespace crows
 		Status status;
 		std::future<T> future;
 
-		template<typename Function>
-		std::future<typename std::result_of<Function(Args...)>::type>
-		async(Function&& fun, Args&&... args) const {
-			return std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...);
+		template<typename Function, typename... FArgs>
+		std::future<std::invoke_result_t<Function, FArgs...>>
+			async(Function&& fun, FArgs&&... args) const {
+			return std::async(std::launch::async, std::forward<Function>(fun), std::forward<FArgs>(args)...);
 		}
 	};
+
 	/*void*/
+
 	template<typename... Args>
 	class Promise<void, Args...> {
 	public:
@@ -80,9 +82,9 @@ namespace crows
 		}
 	
 		template<typename Callback, typename RejectCallback>
-		Promise<typename std::result_of<Callback(void)>::type>
+		Promise< std::invoke_result_t<Callback> >
 		then(Callback&& callback, RejectCallback&& rejectCallback) {
-			return Promise<decltype(callback())>(
+			return Promise<std::invoke_result_t<Callback>>(
 				this->async([this, &callback, &rejectCallback]() {
 				try {
 					this->status = Status::pResolved;
@@ -96,9 +98,9 @@ namespace crows
 			}));
 		}
 		template<typename Callback>
-		Promise<typename std::invoke_result<Callback(void)>::type>
+		Promise<std::invoke_result_t<Callback>>
 		then(Callback&& callback) {
-			return Promise<decltype(callback())>(
+			return Promise<std::invoke_result_t<Callback>>(
 				this->async([this, &callback]() {
 				try {
 					this->status = Status::pResolved;
@@ -120,10 +122,10 @@ namespace crows
 		Status status;
 		std::future<void> future;
 
-		template<typename Function>
-		std::future<typename std::result_of<Function(Args...)>::type>
-		async(Function&& fun, Args&&... args) const {
-			return std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...);
+		template<typename Function, typename... FArgs>
+		std::future<std::invoke_result_t<Function, FArgs...>>
+		async(Function&& fun, FArgs&&... args) const {
+			return std::async(std::launch::async, std::forward<Function>(fun), std::forward<FArgs>(args)...);
 		}
 	};
 }

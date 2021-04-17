@@ -11,17 +11,21 @@ Just include "async.h" and use *crows* namespace
 
 This is a proof of concept for now, so it does have many caveats.
 
-* fix bugs with .then deducing types
 * resolve reject callback type assertion
 * .catch
 * conversion to std::future
 
 ### main.cpp example output FYI
 
-main thread ID: 14504
-Total Time Taken = 2 ms
-method foo waited in thread = 8596 for 777 ms.
+```
+main thread ID: 20268
+method foo waited in thread = 16404 for 777 ms.
+promise p3 was resolved
+promise p3 was resolvedTotal Time Taken =
+790 ms
+method bar executed in thread = 6512
 method in p2 ready
 promise 2 was rejected, then result = 666
 method in p1 ready
 promise 1 resolved, then result = 115
+```
