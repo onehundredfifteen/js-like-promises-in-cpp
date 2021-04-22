@@ -1,133 +1,145 @@
 #pragma once
 #include <future>
+#include <variant>
 #include <iostream>
 
 namespace crows 
 {
-	template<typename T, typename... Args>
-	class Promise {
+	template<typename T>
+	class _promise_base {
 	public:
-		Promise(const std::function<T(Args...)> &executor, Args&&... args) {
-			this->status = Status::pPending;
-			this->future = this->async(executor, std::forward<Args>(args)...);	
-			//std::cout << "std Constructor is called - \n";
+		
+		template<typename Function, typename... Args>
+		_promise_base(Function&& fun, Args&&... args) {
+			this->future = std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...);
 		}
-		Promise(std::future<T>&& _future) : future(std::move(_future)) {
-			this->status = Status::pPending;
-			//std::cout << "fut Constructor is called - \n";
+		_promise_base(std::future<T>&& _future) : future(std::move(_future)) {
+		}
+		
+		bool valid() {
+			return this->future.valid();
 		}
 
-		template<typename Callback, typename RejectCallback>
-		Promise<std::invoke_result_t<Callback, T>>
-		then(Callback&& callback, RejectCallback&& rejectCallback) {
-			return Promise<std::invoke_result_t<Callback, T>>(
-				this->async([this, &callback, &rejectCallback]() {
-				try {
-					this->status = Status::pResolved;
-					return callback(future.get());
+		virtual ~_promise_base() = default;
+
+	protected:
+		std::future<T> future;
+
+		void propagate_exception(std::exception_ptr eptr) {
+			try {
+				if (eptr) {
+					std::rethrow_exception(eptr);
 				}
-				catch (T& ex) {
-					this->status = Status::pRejected;
+			}
+			catch (const std::exception& e) {
+			}
+		}
+	};
+
+
+	template<typename T>
+	class Promise : public _promise_base<T> {
+	public:
+		template<typename Function, typename... Args>
+		Promise(Function&& fun, Args&&... args) :
+			_promise_base<T>(fun, std::forward<Args>(args)...) {
+		}
+
+		template<typename Callback, typename RejectCallback, typename Result = std::invoke_result_t<Callback, T>>
+		Promise<Result>
+		then(Callback&& callback, RejectCallback&& rejectCallback) {
+			return Promise<Result>(
+				[this, &callback, &rejectCallback] {
+				std::exception_ptr eptr;
+				try {
+					T result = this->future.get();
+					try {
+						return callback(std::forward<T>(result));
+					}
+					catch (...) {
+						this->propagate_exception(eptr);
+					}
+				}
+				catch (const T& ex) {
 					return rejectCallback(ex);
 				}
 				catch (...) {
-					this->status = Status::pRejected;
+					this->propagate_exception(eptr);
 				}
-			}));
+			});
 		}
-		template<typename Callback>
-		Promise<std::invoke_result_t<Callback, T>>
-		then(Callback&& callback) {
-			return Promise<std::invoke_result_t<Callback, T>>(
-				this->async([this, &callback]() {
+
+		template<typename Callback, typename Result = std::invoke_result_t<Callback, T>>
+		Promise<Result>
+			then(Callback&& callback) {
+			return Promise<Result>(
+				[this, &callback] {
+				std::exception_ptr eptr;
 				try {
-					this->status = Status::pResolved;
-					return callback(future.get());
+					return callback(this->future.get());
 				}
 				catch (...) {
-					this->status = Status::pRejected;
+					this->propagate_exception(eptr);
 				}
-			}));
+			});
 		}
-		
-	private:
-		enum class Status {
-			pPending = 0,
-			pResolved,
-			pRejected
-		};
-		Status status;
-		std::future<T> future;
 
-		template<typename Function, typename... FArgs>
-		std::future<std::invoke_result_t<Function, FArgs...>>
-			async(Function&& fun, FArgs&&... args) const {
-			return std::async(std::launch::async, std::forward<Function>(fun), std::forward<FArgs>(args)...);
-		}
 	};
 
-	/*void*/
-
-	template<typename... Args>
-	class Promise<void, Args...> {
+	template<>
+	class Promise<void> : public _promise_base<void> {
 	public:
-		Promise(const std::function<void(Args...)> &executor, Args&&... args) {
-			this->status = Status::pPending;
-			this->future = this->async(executor, std::forward<Args>(args)...);
-			//std::cout << "void std Constructor is called - \n";
+		template<typename Function, typename... Args>
+		explicit Promise(Function&& fun, Args&&... args) :
+			_promise_base<void>(fun, std::forward<Args>(args)...) {
 		}
-		Promise(std::future<void>&& _future) : future(std::move(_future)) {
-			this->status = Status::pPending;
-			//std::cout << "void fut Constructor is called - \n";
+
+		Promise(std::future<void>& _future) : _promise_base(std::move(_future)) {
 		}
-	
-		template<typename Callback, typename RejectCallback>
-		Promise< std::invoke_result_t<Callback> >
-		then(Callback&& callback, RejectCallback&& rejectCallback) {
-			return Promise<std::invoke_result_t<Callback>>(
-				this->async([this, &callback, &rejectCallback]() {
+
+		template<typename Callback, typename RejectCallback, typename Result = std::invoke_result_t<Callback>>
+		Promise<Result>
+			then(Callback&& callback, RejectCallback&& rejectCallback) {
+			return Promise<Result>(
+				[this, &callback, &rejectCallback] {
+				std::exception_ptr eptr;
 				try {
-					this->status = Status::pResolved;
-					future.wait();
-					return callback();
+					this->future.get();
+					try {
+						return callback();
+					}
+					catch (...) {
+						eptr = std::current_exception();
+					}
 				}
 				catch (...) {
-					this->status = Status::pRejected;
 					return rejectCallback();
 				}
-			}));
+				this->propagate_exception(eptr);
+			});
 		}
-		template<typename Callback>
-		Promise<std::invoke_result_t<Callback>>
-		then(Callback&& callback) {
-			return Promise<std::invoke_result_t<Callback>>(
-				this->async([this, &callback]() {
+		template<typename Callback, typename Result = std::invoke_result_t<Callback>>
+		Promise<Result>
+			then(Callback&& callback) {
+			return Promise<Result>(
+				[this, &callback] {
+				std::exception_ptr eptr;
 				try {
-					this->status = Status::pResolved;
-					future.wait();
+					this->future.get();
 					return callback();
 				}
 				catch (...) {
-					this->status = Status::pRejected;
+					eptr = std::current_exception();
 				}
-			}));
+				this->propagate_exception(eptr);
+			});
 		}
+		
 
-	private:
-		enum class Status {
-			pPending = 0,
-			pResolved,
-			pRejected
-		};
-		Status status;
-		std::future<void> future;
-
-		template<typename Function, typename... FArgs>
-		std::future<std::invoke_result_t<Function, FArgs...>>
-		async(Function&& fun, FArgs&&... args) const {
-			return std::async(std::launch::async, std::forward<Function>(fun), std::forward<FArgs>(args)...);
-		}
 	};
+
+
+	
 }
 
 
