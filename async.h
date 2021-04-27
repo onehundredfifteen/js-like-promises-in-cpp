@@ -15,6 +15,8 @@ namespace crows
 		}
 		_promise_base(std::future<T>&& _future) : future(std::move(_future)) {
 		}
+
+		_promise_base(const _promise_base &) = delete;
 		
 		bool valid() {
 			return this->future.valid();
@@ -24,16 +26,6 @@ namespace crows
 
 	protected:
 		std::future<T> future;
-
-		void propagate_exception(std::exception_ptr eptr) {
-			try {
-				if (eptr) {
-					std::rethrow_exception(eptr);
-				}
-			}
-			catch (const std::exception& e) {
-			}
-		}
 	};
 
 
@@ -42,30 +34,35 @@ namespace crows
 	public:
 		template<typename Function, typename... Args>
 		Promise(Function&& fun, Args&&... args) :
-			_promise_base<T>(fun, std::forward<Args>(args)...) {
+			_promise_base<T>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
 
 		template<typename Callback, typename RejectCallback, typename Result = std::invoke_result_t<Callback, T>>
 		Promise<Result>
 		then(Callback&& callback, RejectCallback&& rejectCallback) {
 			return Promise<Result>(
-				[this, &callback, &rejectCallback] {
+				[future = this->future.share(), &callback, &rejectCallback] {
 				std::exception_ptr eptr;
 				try {
-					T result = this->future.get();
+					T result = future.get();
 					try {
-						return callback(std::forward<T>(result));
+						return callback(std::move(result));
 					}
 					catch (...) {
-						this->propagate_exception(eptr);
+						eptr = std::current_exception();
 					}
 				}
 				catch (const T& ex) {
 					return rejectCallback(ex);
 				}
 				catch (...) {
-					this->propagate_exception(eptr);
+					eptr = std::current_exception();
 				}
+
+				if (eptr) {
+					std::rethrow_exception(eptr);
+				}
+
 			});
 		}
 
@@ -73,13 +70,12 @@ namespace crows
 		Promise<Result>
 			then(Callback&& callback) {
 			return Promise<Result>(
-				[this, &callback] {
-				std::exception_ptr eptr;
+				[future = this->future.share(), &callback] {
 				try {
-					return callback(this->future.get());
+					return callback(future.get());
 				}
 				catch (...) {
-					this->propagate_exception(eptr);
+					std::rethrow_exception(std::current_exception());
 				}
 			});
 		}
@@ -91,7 +87,7 @@ namespace crows
 	public:
 		template<typename Function, typename... Args>
 		explicit Promise(Function&& fun, Args&&... args) :
-			_promise_base<void>(fun, std::forward<Args>(args)...) {
+			_promise_base<void>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
 
 		Promise(std::future<void>& _future) : _promise_base(std::move(_future)) {
@@ -101,10 +97,11 @@ namespace crows
 		Promise<Result>
 			then(Callback&& callback, RejectCallback&& rejectCallback) {
 			return Promise<Result>(
-				[this, &callback, &rejectCallback] {
+				[future = this->future.share(), &callback, &rejectCallback] {
 				std::exception_ptr eptr;
 				try {
-					this->future.get();
+					future.get();	
+
 					try {
 						return callback();
 					}
@@ -115,23 +112,24 @@ namespace crows
 				catch (...) {
 					return rejectCallback();
 				}
-				this->propagate_exception(eptr);
+
+				if (eptr) {
+					std::rethrow_exception(eptr);
+				}				
 			});
 		}
 		template<typename Callback, typename Result = std::invoke_result_t<Callback>>
 		Promise<Result>
 			then(Callback&& callback) {
 			return Promise<Result>(
-				[this, &callback] {
-				std::exception_ptr eptr;
+				[future = this->future.share(), &callback] {
 				try {
-					this->future.get();
+					future.get();
 					return callback();
 				}
 				catch (...) {
-					eptr = std::current_exception();
+					std::rethrow_exception(std::current_exception());
 				}
-				this->propagate_exception(eptr);
 			});
 		}
 		
