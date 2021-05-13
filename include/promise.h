@@ -1,4 +1,7 @@
 #pragma once
+#ifndef _PROMISE_INCLUDED
+#define _PROMISE_INCLUDED
+
 #include "./base.h"
 
 namespace pro
@@ -195,4 +198,4 @@ namespace pro
 	};
 }
 
-
+#endif //_PROMISE_INCLUDED

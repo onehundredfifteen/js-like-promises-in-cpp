@@ -1,4 +1,7 @@
 #pragma once
+#ifndef READY_PROMISE_INCLUDED
+#define READY_PROMISE_INCLUDED
+
 #include "./promise.h"
 
 namespace pro
@@ -86,3 +89,5 @@ namespace pro
 		std::unique_ptr<Promise<void>> continuation;
 	};
 }
+
+#endif //READY_PROMISE_INCLUDED

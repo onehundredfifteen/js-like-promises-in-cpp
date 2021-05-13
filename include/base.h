@@ -1,4 +1,7 @@
 #pragma once
+#ifndef PROMISE_BASE_INCLUDED
+#define PROMISE_BASE_INCLUDED
+
 #include <future>
 #include <variant>
 
@@ -82,3 +85,5 @@ namespace pro
 		};
 	}
 }
+
+#endif //PROMISE_BASE_INCLUDED
