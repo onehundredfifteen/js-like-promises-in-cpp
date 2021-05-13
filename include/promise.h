@@ -65,6 +65,7 @@ namespace pro
 				if (eptr) {
 					std::rethrow_exception(eptr);
 				}
+				else throw std::logic_error("Promise<T>.then unhandled control path");
 			});
 		}
 
@@ -95,6 +96,8 @@ namespace pro
 				catch (...) {
 					return exceptionCallback(std::current_exception());
 				}
+
+				throw std::logic_error("Promise<T>.fail unhandled control path");
 			});
 		}
 	};
@@ -159,6 +162,7 @@ namespace pro
 				if (eptr) {
 					std::rethrow_exception(eptr);
 				}
+				else throw std::logic_error("Promise<void>.then unhandled control path");
 			});
 		}
 
@@ -189,9 +193,6 @@ namespace pro
 			});
 		}
 	};
-
-
-	
 }
 
 

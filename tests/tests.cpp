@@ -238,3 +238,24 @@ TEST_CASE("Ready Promise - reject with an exception", "[ready]") {
     REQUIRE(p.rejected());
 }
 
+TEST_CASE("Ready Promise - chaining", "[ready]") {
+    int res = 0, then_res = 0;
+    pro::ReadyPromise<int> p([]()->int { return 7; });
+
+    auto nextP = p.then(
+        [&then_res]() mutable { then_res = 8; }
+    );
+
+    SECTION("then") {
+        REQUIRE(then_res == 8);
+    }
+
+    //get result
+    res = p.get();
+    //test result
+    REQUIRE(res == 7);
+    REQUIRE(p.resolved());
+    REQUIRE(p.rejected() == false);
+    REQUIRE(p.valid() == false);
+    REQUIRE(nextP.valid() == true);
+}

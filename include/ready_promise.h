@@ -63,39 +63,11 @@ namespace pro
 			}
 		}
 
-		/*
-		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb, T>,
-			typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb, T>>::value>,
-			typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
-			Promise<Result> then(Cb&& callback, RCb&& rejectCallback, ExCb&& exceptionCallback) {
-			return Promise<Result>(
-				[future = this->future.share(),
-				callback = std::forward<Cb>(callback),
-				rejectCallback = std::forward<RCb>(rejectCallback),
-				exceptionCallback = std::forward<ExCb>(exceptionCallback)]() mutable {
-				std::exception_ptr eptr;
-				try {
-					T result = future.get();
-					try {
-						return callback(std::move(result));
-					}
-					catch (...) {
-						eptr = std::current_exception();
-					}
-				}
-				catch (T& ex) {
-					return rejectCallback(std::move(ex));
-				}
-				catch (...) {
-					eptr = std::current_exception();
-				}
-
-				if (eptr) {
-					return exceptionCallback(std::move(eptr));
-				}
-			});
+		template<typename Cb, typename Result = std::invoke_result_t<Cb>>
+		Promise<Result> then(Cb&& callback) {
+			return continuation.get()->then(std::forward<Cb>(callback));
 		}
-		*/
+		
 	private:
 
 		void _resolve(T value) {
