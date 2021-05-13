@@ -1,7 +1,9 @@
 #define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
 #include "./catch/catch_amalgamated.hpp"
 #include "../include/promise.h"
+#include "../include/ready_promise.h"
 
+//Test wrappers for Promise<T>.then(resolve, reject)
 int wrapThenTypedPromise(pro::Promise<int> &p) {
     int res = 0;
     p.then(
@@ -18,6 +20,41 @@ int wrapThenVoidPromise(pro::Promise<void>& p) {
     );
     return res;
 }
+//Test wrappers for Promise<T>.then(resolve)
+int wrapThenTypedPromise_single(pro::Promise<int>& p) {
+    int res = 0;
+    p.then(
+        [&res](int i) mutable { res = i; }
+    );
+    return res;
+}
+int wrapThenVoidPromise_single(pro::Promise<void>& p) {
+    int res = 0;
+    p.then(
+        [&res]() mutable { res = 1; }
+    );
+    return res;
+}
+//Test wrapper for Promise<T>.then(resolve, reject, reject_with_exception)
+int wrapThenTypedPromise_full(pro::Promise<int>& p) {
+    int res = 0;
+    p.then(
+        [&res](int i) mutable { res = i; },
+        [&res](int i) mutable { res = i * 2; },
+        [&res](std::exception_ptr p) mutable { res = 3; }
+    );
+    return res;
+}
+//Test wrapper for Promise<void>.then(resolve, reject_with_exception)
+int wrapThenVoidPromise_full(pro::Promise<void>& p) {
+    int res = 0;
+    p.then(
+        [&res]() mutable { res = 1; },
+        [&res](std::exception_ptr p) mutable { res = 2; }
+    );
+    return res;
+}
+//Test wrapper for Promise<T>.then(resolve).fail(reject_with_exception), error propagation
 int propagateError(pro::Promise<void>& p, bool includeFail) {
     int res = 0;
 
@@ -42,12 +79,23 @@ TEST_CASE("Promise<T>.then", "[basic]") {
     REQUIRE(wrapThenTypedPromise(pro::Promise<int>([]() -> int { throw 1; })) == 2);
     REQUIRE(wrapThenTypedPromise(pro::Promise<int>([](int arg) { return arg; }, 10)) == 10);
     REQUIRE(wrapThenTypedPromise(pro::Promise<int>([](int arg) -> int { throw arg; }, 10)) == 20);
+
+    REQUIRE(wrapThenTypedPromise_single(pro::Promise<int>([] { return 1; })) == 1);
+    REQUIRE(wrapThenTypedPromise_single(pro::Promise<int>([]() -> int { throw 1; })) == 0);
+    REQUIRE(wrapThenTypedPromise_full(pro::Promise<int>([] { return 1; })) == 1);
+    REQUIRE(wrapThenTypedPromise_full(pro::Promise<int>([]() -> int { throw std::exception("test"); })) == 3);
 }
-TEST_CASE("Promises<void>.then", "[basic]") {
+TEST_CASE("Promise<void>.then", "[basic]") {
     REQUIRE(wrapThenVoidPromise(pro::Promise<void>([]{ })) == 1);
     REQUIRE(wrapThenVoidPromise(pro::Promise<void>([]{ throw 1; })) == 2);
     REQUIRE(wrapThenVoidPromise(pro::Promise<void>([](int arg) { }, 10)) == 1);
     REQUIRE(wrapThenVoidPromise(pro::Promise<void>([](int arg) { throw arg; }, 10)) == 2);
+
+    REQUIRE(wrapThenVoidPromise_single(pro::Promise<void>([] { })) == 1);
+    REQUIRE(wrapThenVoidPromise_single(pro::Promise<void>([] { throw 1; })) == 0);
+    REQUIRE(wrapThenVoidPromise_full(pro::Promise<void>([] { })) == 1);
+    REQUIRE(wrapThenVoidPromise_full(pro::Promise<void>([] { throw 1; })) == 2);
+    REQUIRE(wrapThenVoidPromise_full(pro::Promise<void>([] { throw std::exception("test"); })) == 2);
 }
 TEST_CASE("Promise chain & error propagation", "[basic]") {
     REQUIRE(propagateError(pro::Promise<void>([] {}), true) == 1);
@@ -141,3 +189,52 @@ TEST_CASE("Promise chaining with error propagation", "[natural]") {
     REQUIRE(p.valid() == false);
     REQUIRE(nextP.valid() == false);
 }
+
+TEST_CASE("Ready Promise - resolve", "[ready]") {
+    int res = 0;
+    pro::ReadyPromise<int> p([]()->int {  return 7; });
+    REQUIRE(p.valid() == true);
+    //ensure async
+    REQUIRE(p.ready() == false);
+    REQUIRE_THROWS_AS(res = p.get(), std::future_error);
+    //wait for promise
+    while (p.ready() == false);
+    //get result
+    res = p.get();
+    //test result
+    REQUIRE(res == 7);
+    REQUIRE(p.resolved());
+    REQUIRE(p.rejected() == false);
+}
+
+TEST_CASE("Ready Promise - reject", "[ready]") {
+    int res = 0;
+    pro::ReadyPromise<int> p([]()->int { throw 666; });
+    REQUIRE(p.valid() == true);
+    //ensure async
+    REQUIRE(p.ready() == false);
+    REQUIRE_THROWS_AS(res = p.get(), std::future_error);
+    //wait for promise
+    while (p.ready() == false);
+    //get result
+    res = p.get();
+    //test result
+    REQUIRE(res == 666);
+    REQUIRE(p.rejected());
+    REQUIRE(p.resolved() == false);
+}
+
+TEST_CASE("Ready Promise - reject with an exception", "[ready]") {
+    int res = 0;
+    pro::ReadyPromise<int> p([]()->int { throw std::exception("test"); });
+    REQUIRE(p.valid() == true);
+    //ensure async
+    REQUIRE(p.ready() == false);
+    REQUIRE_THROWS_AS(res = p.get(), std::future_error);
+    //wait for promise
+    while (p.ready() == false);
+    //get result
+    REQUIRE_THROWS_WITH(res = p.get(), "test");
+    REQUIRE(p.rejected());
+}
+

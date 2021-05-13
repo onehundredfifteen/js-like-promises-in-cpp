@@ -11,6 +11,35 @@ namespace pro
 			detail::_promise_base<T>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
 
+		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb, T>,
+		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb, T>>::value>,
+		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
+		Promise<Result> then(Cb&& callback, RCb&& rejectCallback, ExCb&& exceptionCallback) {
+			return Promise<Result>(
+				[future = this->future.share(), &callback, &rejectCallback, &exceptionCallback]{
+				std::exception_ptr eptr;
+				try {
+					T result = future.get();
+					try {
+						return callback(std::move(result));
+					}
+					catch (...) {
+						eptr = std::current_exception();
+					}
+				}
+				catch (T& ex) {
+					return rejectCallback(std::move(ex));
+				}
+				catch (...) {
+					eptr = std::current_exception();
+				}
+
+				if (eptr) {
+					return exceptionCallback(std::move(eptr));
+				}
+			});
+		}
+
 		template<typename Cb, typename RCb, typename Result = std::invoke_result_t<Cb, T>,
 		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb, T>>::value>>
 		Promise<Result> then(Cb&& callback, RCb&& rejectCallback) {
@@ -26,7 +55,7 @@ namespace pro
 						eptr = std::current_exception();
 					}
 				}
-				catch (const T& ex) {
+				catch (T& ex) {
 					return rejectCallback(std::move(ex));
 				}
 				catch (...) {
@@ -60,7 +89,7 @@ namespace pro
 				try {
 					future.get();
 				}
-				catch (const T& ex) {
+				catch (T& ex) {
 					return rejectCallback(std::move(ex));
 				}
 				catch (...) {
@@ -81,14 +110,40 @@ namespace pro
 		Promise(std::future<void>& _future) : _promise_base(std::move(_future)) {
 		}
 
+		template<typename Cb, typename ExCb, typename ExCbArg = std::exception_ptr, typename Result = std::invoke_result_t<ExCb, ExCbArg>,
+		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<Cb> >::value >>
+		Promise<Result> then(Cb&& callback, ExCb&& exceptionCallback) {
+			return Promise<Result>(
+				[future = this->future.share(), &callback, &exceptionCallback] {
+				std::exception_ptr eptr;
+				try {
+					future.get();	
+
+					try {
+						return callback();
+					}
+					catch (...) {
+						eptr = std::current_exception();
+					}
+				}
+				catch (...) {
+					eptr = std::current_exception();
+				}
+
+				if (eptr) {
+					return exceptionCallback(eptr);
+				}				
+			});
+		}
+
 		template<typename Cb, typename RCb, typename Result = std::invoke_result_t<Cb>,
 		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb>>::value>>
 		Promise<Result> then(Cb&& callback, RCb&& rejectCallback) {
 			return Promise<Result>(
-				[future = this->future.share(), &callback, &rejectCallback] {
+				[future = this->future.share(), &callback, &rejectCallback]{
 				std::exception_ptr eptr;
 				try {
-					future.get();	
+					future.get();
 
 					try {
 						return callback();
@@ -103,7 +158,7 @@ namespace pro
 
 				if (eptr) {
 					std::rethrow_exception(eptr);
-				}				
+				}
 			});
 		}
 
