@@ -1,9 +1,9 @@
-// main.cpp : This file contains the 'main' function. Program execution begins and ends there.
+// main.cpp : This file contains examples how to use promise.h
 //
 
 #include <iostream>
 
-#include "async.h"
+#include "include/promise.h"
 
 void foo(int waitfor) {
     std::this_thread::sleep_for(std::chrono::milliseconds(waitfor));
@@ -16,10 +16,10 @@ void bar() {
 }
 
 void resolveInfo() {
-    std::cout << "promise p3 was resolved" << std::endl;
+    std::cout << "promise was resolved" << std::endl;
 }
 void rejectInfo() {
-    std::cout << "promise p3 was rejected" << std::endl;
+    std::cout << "promise was rejected" << std::endl;
 }
 
 int main()
@@ -28,31 +28,32 @@ int main()
     std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 
     //First promise (resolving) with lambda function
-    crows::Promise<int>p1([]() {
+    pro::Promise<int>p1([]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
         std::cout << "method in p1 ready" << std::endl;
-        return 115; 
+        return 115; //resolve this promise by returning a value
     });
 
     //Second promise (rejecting) with lambda function
-    crows::Promise<int>p2([]() -> int {
+    pro::Promise<int>p2([]() -> int {
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
         std::cout << "method in p2 ready" << std::endl;
-        throw 666; //reject promise by throwing a value
+        throw 666; //reject this promise by throwing a value
     });
 
-    //Third promise resolving method with an argument
-    crows::Promise<void, int> p3(foo, 777);
+    //Third promise resolving  'foo' method with an argument
+    pro::Promise<void, int> p3(foo, 777);
 
-    //Fourth promise (resolving) bar method, there is no waiting handler
-    crows::Promise<void>p4(bar);
+    //Fourth promise (resolving) 'bar method', there is no waiting handler
+    pro::Promise<void>p4(bar);
 
-    //wait for promise p1, handle resolve
+    //wait for promise p1, handle resolve. Result (i) should be equal to 115
     auto t = p1.then(
         [](int i) { std::cout << "promise 1 resolved, then result = " << i << std::endl; }
     );
 
     //wait for promise p2, handle both resolve and reject
+    //Promise p2 should be rejected with result equal to 666
     auto tt = p2.then(
         [](int i) { std::cout << "promise 2 was resolved, then result = " << i << std::endl; },
         [](int i) { std::cout << "promise 2 was rejected, then result = " << i << std::endl; }

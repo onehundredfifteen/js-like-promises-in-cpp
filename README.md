@@ -1,8 +1,7 @@
 # js-like-promises-in-cpp
- Call your C++ methods asynchronously as easy as you do it in JavaScript ES6.
+Call your C++ methods asynchronously as easy as you do it in JavaScript ES6.
 
 ## How to use
-
 If you are familiar with javascript Promises such as:
 ```javascript
 var p1 = new Promise((resolve, reject) => {
@@ -38,9 +37,16 @@ p1.then([](std::string value) {
 ```
 
 ### Resolving and rejecting
-To resolve a promise, just return a value. To reject, just throw something (type or exception). If you are throwing an exception, it can be handled by exceptionCallback.
+To resolve a promise, just return a value from your method. 
+To reject it, just throw something (type or exception). 
+Result (returned or thrown) will be passed to corresponding callback methods.
 
-Check main.cpp file, it contains examples.
+If you are throwing an exception, it can be handled only by exceptionCallback.
+
+Check main.cpp file, for more examples.
+
+### Chaining
+It is possible to chain many .then() methods as continuations.
 
 ## How to install
 Just download and include "promise.h" or "ready_promise.h" in your project (use *pro* namespace)
@@ -48,7 +54,7 @@ Just download and include "promise.h" or "ready_promise.h" in your project (use 
 This is a proof of concept for now, so it does have many caveats.
 
 
-### main.cpp example output FYI
+### main.cpp example output
 
 ```
 main thread ID: 20268
