@@ -17,7 +17,11 @@ namespace pro
 			_promise_base(Function&& fun, Args&&... args) {
 				this->future = std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...);
 			}
-			_promise_base(std::future<T>&& _future) : future(std::move(_future)) {
+			explicit _promise_base(const std::future<T>& _future) :
+				future(std::move(_future)) {
+			}
+			explicit _promise_base(std::future<T>&& _future) :
+				future(std::forward<std::future<T>>(_future)) {
 			}
 
 			_promise_base(const _promise_base&) = delete;

@@ -73,6 +73,10 @@ int propagateError(pro::Promise<void>& p, bool includeFail) {
     return res;
 }
 
+//thread worker
+void worker(std::promise<int>&& stdIntPromise, int a, int b) {
+    stdIntPromise.set_value(a * b);
+}
 
 TEST_CASE("Promise<T>.then", "[basic]") {
     REQUIRE(wrapThenTypedPromise(pro::Promise<int>([] { return 1; })) == 1);
@@ -188,6 +192,27 @@ TEST_CASE("Promise chaining with error propagation", "[natural]") {
 
     REQUIRE(p.valid() == false);
     REQUIRE(nextP.valid() == false);
+}
+
+TEST_CASE("Promise with std::future source", "[natural]") {
+    int res = 0;
+    std::promise<int> std_promise;
+    //std::future<int> tresult = std_promise.get_future();
+    pro::Promise<int> p(std_promise.get_future());
+    
+    std::thread t(worker, std::move(std_promise), 2, 3);
+
+    REQUIRE(p.valid() == true);
+    SECTION("then, resolved promise") {
+        p.then(
+            [&res](int i) mutable {res = i; }
+        );
+        t.join();
+        REQUIRE(res == 6);
+    }
+    
+    REQUIRE(p.valid() == false);
+    //REQUIRE(nextP.valid() == false);
 }
 
 TEST_CASE("Ready Promise - resolve", "[ready]") {
