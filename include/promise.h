@@ -16,9 +16,6 @@ namespace pro
 		explicit Promise(std::future<T>&& _future) : 
 			detail::_promise_base<T>(std::forward<std::future<T>>(_future)) {
 		}
-		explicit Promise(const std::future<T>& _future) :
-			detail::_promise_base<T>(_future) {
-		}
 
 		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb, T>,
 		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb, T>>::value>,
@@ -115,11 +112,12 @@ namespace pro
 	class Promise<void> : public detail::_promise_base<void> {
 	public:
 		template<typename Function, typename... Args>
-		explicit Promise(Function&& fun, Args&&... args) :
+		Promise(Function&& fun, Args&&... args) :
 			detail::_promise_base<void>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
 
-		Promise(std::future<void>& _future) : _promise_base(std::move(_future)) {
+		Promise(std::future<void>&& _future) : 
+			_promise_base(std::forward<std::future<void>>(_future)) {
 		}
 
 		template<typename Cb, typename ExCb, typename ExCbArg = std::exception_ptr, typename Result = std::invoke_result_t<ExCb, ExCbArg>,

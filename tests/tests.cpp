@@ -284,3 +284,25 @@ TEST_CASE("Ready Promise - chaining", "[ready]") {
     REQUIRE(p.valid() == false);
     REQUIRE(nextP.valid() == true);
 }
+
+TEST_CASE("Promise manipulations", "[constructors]") {
+    int res = 0;
+    
+    SECTION("move constructor") {
+        pro::Promise<int> p([] { return 1; });
+        pro::Promise<int> new_p(std::move(p));
+
+        REQUIRE(p.valid() == false);
+        REQUIRE(new_p.valid() == true);
+    }
+
+    SECTION("operator =") {
+        pro::Promise<int> p([] { return 1; });
+        pro::Promise<int> new_p = std::move(p);
+
+        REQUIRE(p.valid() == false);
+        REQUIRE(new_p.valid() == true);
+    }
+
+    
+}

@@ -17,6 +17,9 @@ namespace pro
 			_promise_base(Function&& fun, Args&&... args) {
 				this->future = std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...);
 			}
+			explicit _promise_base(_promise_base<T>&& _promise) :
+				future(std::move(_promise.future)) {
+			}
 			explicit _promise_base(const std::future<T>& _future) :
 				future(std::move(_future)) {
 			}
@@ -26,15 +29,22 @@ namespace pro
 
 			_promise_base(const _promise_base&) = delete;
 
+			virtual ~_promise_base() = default;
+
+			_promise_base& operator=(_promise_base&&) = default;
+			_promise_base& operator=(const _promise_base&) = delete;
+
 			virtual bool valid() const noexcept {
 				return this->future.valid();
+			}
+
+			explicit operator bool() const noexcept {
+				return this->valid();
 			}
 
 			auto share_future() {
 				return this->future.share();
 			}
-
-			virtual ~_promise_base() = default;
 
 		protected:
 			std::future<T> future;
