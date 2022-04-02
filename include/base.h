@@ -12,6 +12,7 @@ namespace pro
 		template<typename T>
 		class _promise_base {
 		public:
+			using value_type = T;
 
 			template<typename Function, typename... Args>
 			_promise_base(Function&& fun, Args&&... args) {
@@ -53,9 +54,7 @@ namespace pro
 		template<typename T>
 		class _promise_state {
 		public:
-
-			_promise_state() : state(_state::pPending) {
-			}
+			_promise_state() : state(_state::pPending) {}
 
 		public:
 			enum class _state {

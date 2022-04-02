@@ -43,6 +43,7 @@ namespace pro
 				if (eptr) {
 					return exceptionCallback(std::move(eptr));
 				}
+				else throw std::logic_error("Promise<T>.then(cb,rcb,ecb) unhandled control path");
 			});
 		}
 
@@ -71,7 +72,7 @@ namespace pro
 				if (eptr) {
 					std::rethrow_exception(eptr);
 				}
-				else throw std::logic_error("Promise<T>.then unhandled control path");
+				else throw std::logic_error("Promise<T>.then(cb,rcb) unhandled control path");
 			});
 		}
 

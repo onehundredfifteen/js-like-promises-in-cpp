@@ -7,6 +7,7 @@
 namespace pro
 {
 	template<typename T>
+	//, std::enable_if_t<std::is_void<T>::value, bool> = false>
 	class ReadyPromise : public detail::_promise_base<T> {
 	public:
 		template<typename Function, typename... Args>
@@ -72,7 +73,6 @@ namespace pro
 		}
 		
 	private:
-
 		void _resolve(T value) {
 			state.set_resolved(value);
 		}
