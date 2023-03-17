@@ -57,11 +57,17 @@ int wrapThenVoidPromise_full(pro::Promise<void>& p) {
     );
     return res;
 }
+//Container wrapper
+/*
+[&res](auto vec) {
+    res = std::reduce(vec.begin(), vec.end());
+}*/
 
 //thread worker
 void worker(std::promise<int>&& stdIntPromise, int a, int b) {
     stdIntPromise.set_value(a * b);
 }
+
 
 ///////////////////////
 //Tests for Promise<T>
@@ -71,7 +77,11 @@ TEST_CASE("Promise constructors", "[basic]")
 {
     SECTION("function constructor with some arguments") {
         int res = 0;
-        pro::Promise<int> p([](int a, long b) { return (int)(a + b); }, 115, 5);
+        pro::Promise<int> p([](int a, long b) { 
+                return (int)(a + b); 
+            }, 
+            115, 5
+        );
 
         REQUIRE(p.valid() == true);
         p.then([&res](int i) {res = i;});
@@ -434,7 +444,7 @@ TEST_CASE("ReadyPromise chaining", "[rp basics]")
         auto cbb = [&res](int) { res.append("B"); return 1; };
         auto cbc = [&res](std::exception_ptr) { res.append("C"); return 0; };
 
-        REQUIRE(p.valid() == true);
+        CHECK(p.valid() == true);
         REQUIRE(p.then(con).then(cba, cbb, cbc).valid() == true);
         REQUIRE(p.valid() == false);
         REQUIRE(res == "PA");
@@ -454,7 +464,7 @@ TEST_CASE("ReadyPromise chaining", "[rp basics]")
         auto cbb = [&res](int) { res.append("B"); return 1; };
         auto cbc = [&res](std::exception_ptr) { res.append("C"); return 0; };
 
-        REQUIRE(p.valid() == true);
+        CHECK(p.valid() == true);
         REQUIRE(p.then(con).then(cba, cbb, cbc).valid() == true);
         REQUIRE(p.valid() == false);
         REQUIRE(res == "PA");
@@ -470,11 +480,11 @@ TEST_CASE("ReadyPromise chaining", "[rp basics]")
 //Tests for Utils
 ///////////////////////////
 
-TEST_CASE("Promise all", "[util]") 
+TEST_CASE("Promise all typed", "[util]")
 {
-    SECTION("Result validation") {
+   /*SECTION("Result validation") {
         REQUIRE(pro::PromiseAll(pro::Promise<int>([] { return 1; })).valid() == true);
-    }
+    }*/
 
     SECTION("All promises resolved") {
         int res = 0;
@@ -484,38 +494,91 @@ TEST_CASE("Promise all", "[util]")
         pro::PromiseAll(p1, p2).then(
             [&res](auto tuple) { res = std::get<0>(tuple) + (int)std::get<1>(tuple); }
         );
+
         REQUIRE(res == 10);
     }
-    /*
-    SECTION("real async test") {
-        auto start = std::chrono::system_clock::now();
-        auto p = pro::PromiseAll(pro::Promise<int> ([] { return 1; }), 
-            pro::Promise<char>([] { return 'x'; }),
-            pro::Promise<std::string>([] { return std::string("str"); }),
-            pro::Promise<int>([] { return 1; })).then(
-            [](auto tuple) { }
-        );
 
-        auto end = std::chrono::system_clock::now();
-        REQUIRE(std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count() < 20);
-    }*/
-
-    SECTION("Some promise fails /*and the result comes from the fastest one*/") {
+    SECTION("Some promises are rejected") {
         int res = 0;
         pro::Promise<int> p1([] { return 1; });
-        /*pro::Promise<char> p2([]()->char { 
-            std::this_thread::sleep_for(std::chrono::milliseconds(666)); 
-            throw 'x'; 
-        });*/
-        pro::Promise<long> p2([]()->long { throw 115L; });
+        pro::Promise<int> p2([]()->int { throw 115; });
+
+        pro::PromiseAll(p1, p2).then(
+            [&res](auto tuple) {
+            res = std::get<0>(tuple) + (int)std::get<1>(tuple);
+        }).fail(
+            [&res](std::exception_ptr eptr) {
+            try {
+                std::rethrow_exception(eptr);
+            }
+            catch (int v) {
+                res = v;
+            }
+            catch (...) {
+                res = 420;
+            }
+        });
+
+        REQUIRE(res == 115);
+    }
+
+    SECTION("PromiseAll itself is asynchronous") {
+        auto start = std::chrono::system_clock::now();
+
+        //test should take no logner than 20ms, 
+        //despite promise sleeping for 115ms 
+
+        pro::Promise<int> p1([] { return 1; });
+
+        auto p = pro::PromiseAll(p1,
+            pro::Promise<long>([] { return 9L; }),
+            pro::Promise<char>([] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(115));
+            return 'x'; })
+        ).then([](auto) {});
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Sync PromiseAll resolve all its methods asynchronously") {
+        auto start = std::chrono::system_clock::now();
+
+        //test should take no logner than 1000ms, 
+        //despite promises sleeping for 666ms each 
+
+        pro::Promise<int> p1([] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(666));
+            return 1;
+        });
+        pro::PromiseAll(p1,
+            pro::Promise<long>([] { return 9L; }),
+            pro::Promise<char>([] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(666));
+            return 'x'; })
+        ).then([](auto) {});
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(1000 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Two promise fails and the result comes from the fastest one") {
+        int res = 0;
+
+        pro::Promise<int> p1([] { return 1; });
+        pro::Promise<char> p2([]()->char {
+            std::this_thread::sleep_for(std::chrono::milliseconds(666));
+            throw 'x';
+        });
+        pro::Promise<long> p3([]()->long { throw 115L; });
 
         //res should be never less than 0.
         //Second callback should be never called, because
-        //no promise throws a tuple<int, long>.
+        //no promise throws a tuple<int, char, long>.
 
-        pro::PromiseAll(p1, p2).then(
-            [&res](auto tuple) { res = -1;},
-            [&res](auto tuple) { res = -2;},
+        pro::PromiseAll(p1, p2, p3).then(
+            [&res](auto tuple) { res = -1; },
+            [&res](auto tuple) { res = -2; },
             [&res](std::exception_ptr eptr) {
                 try {
                     std::rethrow_exception(eptr);
@@ -526,12 +589,177 @@ TEST_CASE("Promise all", "[util]")
                 catch (...) {
                     res = -3;
                 }
-            }
-        );
-        REQUIRE(res > 0);
-        REQUIRE(res == 115);
+        });
 
+        CHECK(res > 0);
+        REQUIRE(res == 115);
     }
 
+    SECTION("Invalid promise will return default value, not throw") {
+        int res = 0;
 
+        pro::Promise<int> p([] { return 115; });
+        CHECK(p.valid() == true);
+
+        p.then([](int) {});
+        REQUIRE(p.valid() == false);
+
+        pro::PromiseAll(p,
+            pro::Promise<int>([] { return 420; })
+        ).then(
+            [&res](auto tuple) {
+            res = std::get<0>(tuple) + std::get<1>(tuple);
+        }
+        ).fail(
+            [&res](std::exception_ptr eptr) { res = -1; }
+        );
+
+        CHECK(res > 0);
+        REQUIRE(res == 420);
+    }
+
+    SECTION("PromiseAll with converted ReadyPromise") {
+        int res = 0;
+
+        pro::ReadyPromise<int> rp([] { return 115; });
+        pro::Promise<int> p([] { return 420 - 115; });
+
+        pro::PromiseAll(rp.promisify(), p).then(
+            [&res](auto tuple) { res = std::get<0>(tuple) + std::get<1>(tuple); }
+        );
+
+        CHECK(res > 0);
+        REQUIRE(res == 420);
+    }
+}
+TEST_CASE("Promise all collection", "[util]")
+{
+    SECTION("Result validation on an empty collection") {
+        REQUIRE(pro::PromiseAll(std::vector<pro::Promise<int>>()).valid() == true);
+    }
+    
+    SECTION("All promises resolved") {
+        int res = 0;
+
+        pro::Promise<int> p([] { return 115; });
+        pro::Promise<int> p2([] { return 666; });
+        std::vector<pro::Promise<int>> v;
+        v.push_back(std::move(p));
+        v.push_back(std::move(p2));
+       
+        pro::PromiseAll(v).then(
+            [&res](auto vec) { 
+                res = std::reduce(vec.begin(), vec.end());
+            }
+        );
+
+        CHECK(res > 0);
+        REQUIRE(res == 115 + 666);
+    }
+    
+    SECTION("Some promises are rejected") {
+        int res = 0;
+
+        pro::Promise<int> p([] { return 115; });
+        pro::Promise<int> p2([]()->int { throw 666; });
+        std::vector<pro::Promise<int>> v;
+        v.push_back(std::move(p));
+        v.push_back(std::move(p2));
+
+        pro::PromiseAll(v).then(
+            [&res](auto vec) {
+                res = std::reduce(vec.begin(), vec.end());
+            },
+            [&res](auto vec) {
+                res = std::reduce(vec.begin(), vec.end());
+        });
+        
+        CHECK(res > 0);
+        REQUIRE(res == 666);
+    }
+
+    SECTION("PromiseAll itself is asynchronous") {
+        auto start = std::chrono::system_clock::now();
+
+        //test should take no logner than 20ms, 
+        //despite promise sleeping for 115ms 
+
+        pro::Promise<int> p1([] { return 1; });
+        pro::Promise<int> p2([] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1145));
+            return 115; });
+        pro::Promise<int> p3([]()->int { throw 666; });
+
+        std::vector<pro::Promise<int>> v;
+        v.push_back(std::move(p1));
+        v.push_back(std::move(p2));
+        v.push_back(std::move(p2));
+
+        auto p = pro::PromiseAll(v).then([](auto) {});
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Sync PromiseAll resolve all its methods asynchronously") {
+        auto start = std::chrono::system_clock::now();
+
+        //test should take no logner than 20ms, 
+        //despite promise sleeping for 115ms 
+
+        pro::Promise<int> p1([] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(666));
+            return 115; });
+        pro::Promise<int> p2([] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(666));
+            return 420; });
+        
+        std::vector<pro::Promise<int>> v;
+        v.push_back(std::move(p1));
+        v.push_back(std::move(p2));
+
+        pro::PromiseAll(v).then([](auto) {});
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(1000 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Two promise fails and the result comes from the fastest one") {
+        int res = 0;
+
+        pro::Promise<long> p1([]()->long {
+            std::this_thread::sleep_for(std::chrono::milliseconds(666));
+            throw 420L; });
+        pro::Promise<long> p2([]()->long { 
+            throw std::exception(""); });
+
+        std::vector<pro::Promise<long>> v;
+        v.push_back(std::move(p1));
+        v.push_back(std::move(p2));
+
+        pro::PromiseAll(v).then(
+            [&res](auto vec) {
+                res = std::reduce(vec.begin(), vec.end());
+            },
+            [&res](auto vec) {
+                res = std::reduce(vec.begin(), vec.end());
+            }, 
+            [&res](std::exception_ptr eptr) {
+                try {
+                    std::rethrow_exception(eptr);
+                }
+                catch (pro::AggregateException & ae) {
+                    res = 1;
+                }
+                catch (std::exception & ex) {
+                    res = -1;
+                }
+                catch (...) {
+                    res = -3;
+                }
+            });
+
+        CHECK(res > 0);
+        REQUIRE(res == 1);
+    }
 }

@@ -56,13 +56,6 @@ namespace pro
 		public:
 			_promise_state() : state(_state::pPending) {}
 
-		public:
-			enum class _state {
-				pPending,
-				pResolved,
-				pRejected
-			};
-
 			void set_resolved(T& value) {
 				this->value = value;
 				this->state = _state::pResolved;
@@ -78,20 +71,36 @@ namespace pro
 				this->state = _state::pRejected;
 			}
 
+			bool is_resolved() const {
+				return this->state == _state::pResolved;
+			}
+			bool is_rejected() const {
+				return this->state == _state::pRejected;
+			}
+			bool is_pending() const {
+				return this->state == _state::pPending;
+			}
+
 			T get_value() const {
-				if (auto pval = std::get_if<T>(&this->value)) {
-					return *pval;
+				if (this->holds_type<T>()) {
+					return std::get<T>(this->value);
 				}
 				else {
 					std::rethrow_exception(std::get<std::exception_ptr>(this->value));
 				}
 			}
 
-			_state get_state() const {
-				return this->state;
+			template<typename H>
+			bool holds_type() const {
+				return std::holds_alternative<H>(this->value);
 			}
 
 		private:
+			enum class _state {
+				pPending,
+				pResolved,
+				pRejected
+			};
 
 			_state state;
 			std::variant<std::monostate, T, std::exception_ptr> value;

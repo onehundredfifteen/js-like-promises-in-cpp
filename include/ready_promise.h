@@ -44,18 +44,36 @@ namespace pro
 			);
 		}
 		
+		Promise<T> promisify() const {
+			std::promise<T> std_promise;
+			std_promise.set_value(this->get()); //set future value
+
+			return Promise<T>(std_promise.get_future());
+		}
+		 operator Promise<T>() const {
+
+			//std::promise<value_typex> std_promise;
+			//std::future<T> future = ; //get future associated with promise
+
+			//std_promise.set_value(this->get()); //set future value
+
+			 return Promise<T>([]->T {});
+
+			
+		}
+
 		virtual bool valid() const noexcept override {
 			return continuation.get()->valid();
 		}
 
 		bool ready() const {
-			return state.get_state() != detail::_promise_state<T>::_state::pPending;
+			return false == state.is_pending();
 		}
 		bool resolved() const {
-			return state.get_state() == detail::_promise_state<T>::_state::pResolved;
+			return state.is_resolved();
 		}
 		bool rejected() const {
-			return state.get_state() == detail::_promise_state<T>::_state::pRejected;
+			return state.is_rejected();
 		}
 
 		T get() const {
