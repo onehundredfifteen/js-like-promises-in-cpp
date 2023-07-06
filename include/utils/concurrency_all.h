@@ -10,48 +10,48 @@ namespace pro
 	namespace concurrency
 	{
 		template <typename P>
-		struct _promise_all : detail::_promise_concurrency_base<P>
+		struct _promise_all : private detail::_promise_concurrency_base<P, true>
 		{
-			using Result = typename P::value_type;
+			using YieldType = typename detail::_promise_concurrency_base<P, true>::YieldType;
 
 			template <typename PromiseContainer>
 			_promise_all(PromiseContainer&& pc)
-				: detail::_promise_concurrency_base<P>(pc, std::size(pc), 1) {}
-
-			std::vector<Result> yield() override 
+				: detail::_promise_concurrency_base<P, true>(pc, std::size(pc), 1) {}
+			
+			YieldType yield() override
 			{
 				wait();
 
-				if (outcome_rejections_idx.size() > 0)
+				if (rejection_results.size() > 0)
 				{
-					auto rejection = outcome_rejections_idx.front();
+					auto rejection = rejection_results.pop();
 
-					if (std::get<1>(rejection) == nullptr) {
-						throw std::vector<Result> { outcome[std::get<0>(rejection)] };
+					if (std::get<2>(rejection) == nullptr) {
+						throw YieldType{ std::get<1>(rejection) };
 					}
 					else {
-						std::rethrow_exception(std::get<1>(rejection));
+						std::rethrow_exception(std::get<2>(rejection));
 					}
 				}
 
-				return outcome;
+				return resultsToVector();
 			}
 		};
 
 		template <>
 		struct _promise_all<Promise<void>> 
-			: detail::_promise_concurrency_base<Promise<void>>
+			: detail::_promise_concurrency_base<Promise<void>, false>
 		{
 			template <typename PromiseContainer>
 			_promise_all(PromiseContainer&& pc)
-				: detail::_promise_concurrency_base<Promise<void>>(pc, std::size(pc), 1) {}
+				: detail::_promise_concurrency_base<Promise<void>, false>(pc, std::size(pc), 1) {}
 
 			void yield() override 
 			{
 				wait();
 
-				if (outcome_rejections_idx.size() > 0) {
-					std::rethrow_exception(std::get<1>(outcome_rejections_idx.front()));
+				if (rejection_results.size() > 0) {
+					std::rethrow_exception(std::get<1>(rejection_results.pop()));
 				}
 			}
 		};

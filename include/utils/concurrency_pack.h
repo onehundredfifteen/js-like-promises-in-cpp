@@ -34,15 +34,15 @@ namespace pro
 				pro::detail::_promise_state<Result> promise_state;
 
 				void _resolve(Result value) {
-					promise_state.set_resolved(value);
+					promise_state.set_resolved(std::move(value));
 				}
 
 				void _reject(Result value) {
-					promise_state.set_rejected(value);
+					promise_state.set_rejected(std::move(value));
 				}
 
 				void _reject_ex(std::exception_ptr eptr) {
-					promise_state.set_rejected(eptr);
+					promise_state.set_rejected(std::move(eptr));
 				}
 
 				template<size_t idx>
@@ -56,6 +56,8 @@ namespace pro
 
 			template<typename P>
 			struct _get_helper<0, _promise_collection<P>> {
+				static_assert(std::is_default_constructible_v<P::value_type>,
+					"Parameter must be default-constructible");
 
 				static P get(_promise_collection<P>& collection) {
 					return collection.promise;

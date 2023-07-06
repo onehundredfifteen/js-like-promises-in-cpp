@@ -13,10 +13,7 @@ namespace pro
 		Promise(Function&& fun, Args&&... args) :
 			detail::_promise_base<T>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
-		explicit Promise(std::future<T>&& _future) : 
-			detail::_promise_base<T>(std::forward<std::future<T>>(_future)) {
-		}
-
+		
 		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb, T>,
 		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb, T>>::value>,
 		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
@@ -126,9 +123,9 @@ namespace pro
 		}
 
 		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb>,
-			typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb>>::value>,
-			typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
-			Promise<Result> then(Cb&& callback, RCb&& rejectCallback, ExCb&& exceptionCallback) {
+		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb>>::value>,
+		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
+		Promise<Result> then(Cb&& callback, RCb&& rejectCallback, ExCb&& exceptionCallback) {
 			return Promise<Result>(
 				[future = std::move(this->future), callback, rejectCallback, exceptionCallback]() mutable {
 					std::exception_ptr eptr;

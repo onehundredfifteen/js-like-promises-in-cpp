@@ -85,23 +85,21 @@ namespace pro {
     }
 
     namespace promise_type_utils {
-        namespace detail {
-
-            
-        }
 
         template <typename... Args>
         using is_all_promise = std::integral_constant<bool, (std::is_same_v<Args, pro::Promise<typename Args::value_type>> && ...)>;
 
         template <typename Container>
-        struct CollectionTypeTraits {
+        struct collection_type_traits {
             using PromiseType = typename Container::value_type;
             using ValueType = typename PromiseType::value_type;
             using ReturnType = typename std::conditional<!std::is_same<ValueType, void>::value, std::vector<ValueType>, void>::type;
         };
 
-        template <typename Res>
-        using ReturnType = typename std::conditional<!std::is_same<Res, void>::value, std::vector<Res>, void>::type;
+        //template <typename Res>
+        //using ReturnType = typename std::conditional<!std::is_same<Res, void>::value, std::vector<Res>, void>::type;
     }
+
+
 }  //namespace
 #endif

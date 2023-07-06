@@ -6,6 +6,7 @@
 #include <tuple>
 #include <queue>
 #include "./../promise.h"
+#include "./concurrent_queue.h"
 
 namespace pro 
 {
@@ -13,27 +14,25 @@ namespace pro
 	{
 		namespace detail
 		{
-			template <typename P>
+			template <typename P, bool yieldArray>
 			struct _promise_concurrency_base
 			{
 				using Result = typename P::value_type;
+				using YieldType = typename std::conditional<yieldArray,
+						std::vector<Result>, Result>::type;
 
 				bool yield_results;
 				const unsigned int res_limit;
 				const unsigned int rej_limit;
 
-				unsigned int cb_count;
-
-				std::vector<Result> outcome;
-				std::queue<std::tuple<int, std::exception_ptr>> outcome_rejections_idx;
+				queue<std::tuple<int, Result>> results;
+				queue<std::tuple<int, Result, std::exception_ptr>> rejection_results;
 
 				template <typename PromiseContainer>
 				_promise_concurrency_base(PromiseContainer&& pc, unsigned int resLimit, unsigned int rejLimit)
 					: res_limit(resLimit),
 					rej_limit(rejLimit),
-					outcome(res_limit),
-					yield_results(false),
-					cb_count(0)
+					yield_results(false)
 				{
 					int n = 0;
 					auto _begin = std::begin(pc);
@@ -46,33 +45,32 @@ namespace pro
 				}
 
 				void _resolve(Result value, unsigned int idx) {
-					outcome[idx] = value;
+					results.push(std::move(std::make_tuple(idx, std::move(value))));
 
-					if (++cb_count >= res_limit)
+					if (results.size() >= res_limit)
 						yield_results = true;
 				}
 
 				void _reject(Result value, unsigned int idx) {
-					outcome[idx] = value;
+					rejection_results.push(std::move(std::make_tuple(idx, std::move(value), nullptr)));
 
-					outcome_rejections_idx.push(std::make_tuple(idx, nullptr));
-					if (outcome_rejections_idx.size()
+					if (rejection_results.size()
 						>= rej_limit)
 						yield_results = true;
 				}
 
 				void _reject_ex(std::exception_ptr eptr, unsigned int idx) {
-					outcome_rejections_idx.push(std::make_tuple(idx, eptr));
+					rejection_results.push(std::move(std::make_tuple(idx, Result(), std::move(eptr))));
 
-					if (outcome_rejections_idx.size()
+					if (rejection_results.size()
 						>= rej_limit)
 						yield_results = true;
 				}
 
 				Promise<void> settle(P& promise, unsigned int idx) {
-					auto resolveBound = std::bind(&_promise_concurrency_base<P>::_resolve, this, std::placeholders::_1, idx);
-					auto rejectBound = std::bind(&_promise_concurrency_base<P>::_reject, this, std::placeholders::_1, idx);
-					auto rejectExBound = std::bind(&_promise_concurrency_base<P>::_reject_ex, this, std::placeholders::_1, idx);
+					auto resolveBound = std::bind(&_promise_concurrency_base<P, yieldArray>::_resolve, this, std::placeholders::_1, idx);
+					auto rejectBound = std::bind(&_promise_concurrency_base<P, yieldArray>::_reject, this, std::placeholders::_1, idx);
+					auto rejectExBound = std::bind(&_promise_concurrency_base<P, yieldArray>::_reject_ex, this, std::placeholders::_1, idx);
 
 					if (false == promise.valid()) {
 						//_reject_ex(idx, make_exception_ptr(std::invalid_argument("Invalidated promise")));
@@ -83,22 +81,45 @@ namespace pro
 
 				void wait() {
 					while (false == yield_results) {
+						//std::chrono::system_clock::time_point::min()
+						std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					}
 				}
 
-				virtual std::vector<Result> yield() = 0;
+				virtual YieldType yield() = 0;
+
+				std::vector<Result> resultsToVector() {
+					std::vector<Result> vec(results.size());
+
+					while (false == results.empty()) {
+						auto el = results.pop();
+						vec[std::get<0>(el)] = std::move(std::get<1>(el));
+					}
+
+					return vec;
+				}
+				/*
+				std::vector<Result> rejectionsToVector(unsigned int size) {
+					std::vector<Result> vec(size);
+
+					while (false == rejection_results.empty()) {
+						auto el = rejection_results.pop();
+						vec[std::get<0>(el)] = std::get<1>(el);
+					}
+
+					return vec;
+				}*/
 			};
 
 			template <>
-			struct _promise_concurrency_base<Promise<void>>
+			struct _promise_concurrency_base<Promise<void>, false>
 			{
 				bool yield_results;
 				const unsigned int res_limit;
 				const unsigned int rej_limit;
 
 				unsigned int cb_count;
-
-				std::queue<std::tuple<int, std::exception_ptr>> outcome_rejections_idx;
+				queue<std::tuple<int, std::exception_ptr>> rejection_results;
 
 				template <typename PromiseVoidContainer>
 				_promise_concurrency_base(PromiseVoidContainer&& pc, unsigned int resLimit, unsigned int rejLimit)
@@ -123,25 +144,25 @@ namespace pro
 				}
 
 				void _reject(unsigned int idx) {
-					outcome_rejections_idx.push(std::make_tuple(idx, nullptr));
+					rejection_results.push(std::make_tuple(idx, nullptr));
 
-					if (outcome_rejections_idx.size()
+					if (rejection_results.size()
 						>= rej_limit)
 						yield_results = true;
 				}
 
 				void _reject_ex(std::exception_ptr eptr, unsigned int idx) {
-					outcome_rejections_idx.push(std::make_tuple(idx, eptr));
+					rejection_results.push(std::make_tuple(idx, eptr));
 
-					if (outcome_rejections_idx.size()
+					if (rejection_results.size()
 						>= rej_limit)
 						yield_results = true;
 				}
 
 				Promise<void> settle(Promise<void>& promise, unsigned int idx) {
-					auto resolveBound = std::bind(&_promise_concurrency_base<Promise<void>>::_resolve, this);
-					auto rejectBound = std::bind(&_promise_concurrency_base<Promise<void>>::_reject, this, idx);
-					auto rejectExBound = std::bind(&_promise_concurrency_base<Promise<void>>::_reject_ex, this, std::placeholders::_1, idx);
+					auto resolveBound = std::bind(&_promise_concurrency_base<Promise<void>, false>::_resolve, this);
+					auto rejectBound = std::bind(&_promise_concurrency_base<Promise<void>, false>::_reject, this, idx);
+					auto rejectExBound = std::bind(&_promise_concurrency_base<Promise<void>, false>::_reject_ex, this, std::placeholders::_1, idx);
 
 					if (false == promise.valid()) {
 						//_reject_ex(idx, make_exception_ptr(std::invalid_argument("Invalidated promise")));
@@ -160,38 +181,43 @@ namespace pro
 		}
 
 		template <typename Method, typename Container,
-				 typename CT = promise_type_utils::CollectionTypeTraits<Container>>
+				 typename CT = promise_type_utils::collection_type_traits<Container>>
 		struct concurrency_call_wrapper 
 		{
 			static typename CT::ReturnType call(Container && collection) {
 				if (std::size(collection) == 0) {
 					if constexpr (std::is_same<CT::ValueType, void>::value)
 						return;
-					else return std::vector<CT::ValueType>();
+					else 
+						return std::vector<CT::ValueType>();
+				}
+
+				Method states(collection);
+				return states.yield();
+			}
+
+			static typename CT::ValueType call_reduce(Container&& collection) {
+				if (std::size(collection) == 0) {
+					if constexpr (std::is_same<CT::ValueType, void>::value)
+						return;
+					else
+						return CT::ValueType();
 				}
 
 				Method states(collection);
 				return states.yield();
 			}
 		};
-
 	}
 
 	class AggregateException : public std::exception {
 	public:
-		const std::exception_ptr* inner_exceptions;
+		const std::vector<std::exception_ptr> inner_exceptions;
 
 		template <typename ExceptionContainer>
 		AggregateException(ExceptionContainer&& ec)
-			: inner_exceptions(new std::exception_ptr[std::size(ec)])
-		{
-			int n = 0;
-			auto _begin = std::begin(ec);
-			auto _end = std::end(ec);
-
-			for (auto it = _begin; it < _end; ++it) {
-				inner_exceptions[n++] = *it;
-			}
+			: inner_exceptions(ec)
+		{		
 		}
 
 		const char* what() {

@@ -7,18 +7,18 @@
 
 #include "./utils/concurrency_all.h"
 #include "./utils/concurrency_pack.h"
+#include "./utils/concurrency_race.h"
 
 namespace pro {
 
-	template<class Container, typename CT = promise_type_utils::CollectionTypeTraits<Container> >
+	template<class Container, typename CT = promise_type_utils::collection_type_traits<Container> >
 		typename std::enable_if_t<type_utils::is_container<Container>::value,
 	Promise<typename CT::ReturnType>>
 	PromiseAll(Container& container)
 	{
 		return make_promise<CT::ReturnType>(
 			concurrency::concurrency_call_wrapper<concurrency::_promise_all<CT::PromiseType>, Container>::call,
-			std::move(container)
-		);
+			std::move(container));
 	}
 
 	template<typename... Args>
@@ -44,6 +44,16 @@ namespace pro {
 			},
 			concurrency_pack::detail::_promise_collection<Args...>(tail...)
 		);
+	}
+
+	template<class Container, typename CT = promise_type_utils::collection_type_traits<Container> >
+		typename std::enable_if_t<type_utils::is_container<Container>::value,
+	Promise<typename CT::ValueType>>
+	PromiseRace(Container& container)
+	{
+		return make_promise<CT::ValueType>(
+			concurrency::concurrency_call_wrapper<concurrency::_promise_race<CT::PromiseType>, Container>::call_reduce,
+			std::move(container));
 	}
 }
 
