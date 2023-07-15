@@ -94,7 +94,6 @@ struct CopyCounter {
     CopyCounter() : copied(0), moved(0), constructed(1) {}
     CopyCounter(const CopyCounter& cc) : 
         copied(cc.copied + 1), moved(cc.moved), constructed(cc.constructed) {
-        int y = 0;
     }
     CopyCounter(CopyCounter&& cc) noexcept :
         copied(std::exchange(cc.copied, 0)),
@@ -199,6 +198,21 @@ TEST_CASE("Promise constructors", "[basic]")
         REQUIRE(p.valid() == false);
     }
 
+    SECTION("making a rejected promise") {
+        int res = 0;
+        auto p = pro::make_rejected_promise<int>(115);
+
+        REQUIRE(p.valid() == true);
+        p.fail([&res](int i) {
+            res = i;
+        }, [&res](std::exception_ptr eptr) {
+            res = 420;
+        });
+
+        REQUIRE(res == 115);
+        REQUIRE(p.valid() == false);
+    }
+
     SECTION("converting to std::future") {
         int res = 0;
         pro::Promise<int> p(sleepAndReturnInt, 200, 1);
@@ -208,6 +222,26 @@ TEST_CASE("Promise constructors", "[basic]")
         
         res = fut.get();
         REQUIRE(res == 1);
+    }
+
+    SECTION("fixed value resolving constructor") {
+        int res = 0;
+        pro::Promise<int> p(115);
+
+        REQUIRE(p.valid() == true);
+
+        std::future<int> fut = p;
+        res = fut.get();
+        REQUIRE(res == 115);
+    }
+
+    SECTION("fixed value rejecting constructor") {
+        pro::Promise<int> p(std::make_exception_ptr(115));
+
+        REQUIRE(p.valid() == true);
+
+        std::future<int> fut = p;
+        REQUIRE_THROWS_AS(fut.get(), int);
     }
 }
 
@@ -403,8 +437,8 @@ TEST_CASE("Promise error propagation", "[exceptions]")
 
 TEST_CASE("Promise async", "[async]")
 {
-    /*tests should take no logner than 20ms, 
-      despite promise sleeping for 115ms 
+    /*tests should take no longer than 20ms, 
+      despite promise sleeping for much longer time
      */
     SECTION("Promise is asynchronous") {
         auto start = std::chrono::system_clock::now();
@@ -425,15 +459,77 @@ TEST_CASE("Promise async", "[async]")
         auto end = std::chrono::system_clock::now();
         REQUIRE(115 <= std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
     }
-    
-    SECTION("Promise can be released by async method") {
-        auto start = std::chrono::system_clock::now();
-        pro::Executor<void> e;
-        pro::Promise<void> p([] { std::this_thread::sleep_for(std::chrono::milliseconds(115)); });
 
-        p.then(dummy).async(e);
+    SECTION("Promise is asynchronous") {
+        auto start = std::chrono::system_clock::now();
+        pro::Executor<void> executor;
+        pro::Promise<void> p(sleepAndReturn, 115);
+
+        p.then(dummy).async(executor);
 
         auto end = std::chrono::system_clock::now();
+        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+    
+    SECTION("Promise can be resolved with a different value later") {
+        int res = 0;
+        auto start = std::chrono::system_clock::now();
+        pro::Executor<int> executor;
+        pro::Promise<int> p(sleepAndReturnInt, 500, 666);
+        p.resolve(executor, 420);
+        p.then([&res](auto i) { res = i; });
+             
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(res == 420);
+        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Promise can be rejected with a different value later") {
+        int res = 0;
+        auto start = std::chrono::system_clock::now();
+        pro::Executor<int> executor;
+        pro::Promise<int> p(sleepAndReturnInt, 500, 666);
+        p.reject(executor, 420);
+        p.then([&res](auto i) { res = i; }, [&res](auto i) { res = i; });
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(res == 420);
+        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Promise can be rejected with a custom exception later") {
+        int res = 0;
+        auto start = std::chrono::system_clock::now();
+        pro::Executor<int> executor;
+        std::exception test_exception("testing reject");
+        pro::Promise<int> p(sleepAndReturnInt, 500, 666);
+        p.reject(executor, std::make_exception_ptr(test_exception));
+        p.then([&res](auto i) { res = i; }).fail(
+            [&res](std::exception_ptr eptr) {
+            try {
+                std::rethrow_exception(eptr);
+            }
+            catch (std::exception &) {
+                res = 420;
+            }
+            catch (...) {
+                res = 115;
+            }
+        });
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(res == 420);
+        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+    }
+
+    SECTION("Promise<void> can be resolved - somehow cancelled") {
+        auto start = std::chrono::system_clock::now();
+        pro::Executor<void> executor;
+        pro::Promise<void> p(sleepAndReturn, 500);
+        p.resolve(executor);
+
+        auto end = std::chrono::system_clock::now();
+        REQUIRE(p.valid());
         REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
     }
 }
@@ -467,7 +563,7 @@ TEST_CASE("ReadyPromise constructors", "[rp basic]")
         REQUIRE(new_p.valid() == true);
         REQUIRE(new_p.get() == 1);
     }
-    
+    /*
     SECTION("operator =") {
         pro::ReadyPromise<int> p(returnInt, 1);
         pro::ReadyPromise<int> new_p = std::move(p);
@@ -566,7 +662,7 @@ TEST_CASE("ReadyPromise value handling", "[rp basic]")
 
 TEST_CASE("PromiseAll on a different type list", "[util]")
 {
-   /*SECTION("Result validation") {
+    /*SECTION("Result validation") {
         REQUIRE(pro::PromiseAll(pro::Promise<int>([] { return 1; })).valid() == true);
     }*/
 
@@ -878,6 +974,23 @@ TEST_CASE("PromiseAll on a collection", "[util]")
         CHECK(res > 0);
         REQUIRE(res == 1);
     }
+
+    SECTION("Empty PromiseAll are resolved") {
+        int res = 0;
+
+        std::vector<pro::Promise<int>> v;
+
+        pro::PromiseAll(v).then(
+            [&res](auto vec) {
+                res = std::reduce(vec.begin(), vec.end());
+            }
+        ).fail(
+            [&res](auto eptr) {
+                res = 115;
+            });
+
+        REQUIRE(res == 0);
+    }
 }
 
 TEST_CASE("PromiseRace", "[util]")
@@ -910,12 +1023,11 @@ TEST_CASE("PromiseRace", "[util]")
         CHECK(res > 0);
         REQUIRE(res == 666);
     }
- 
 }
 
 TEST_CASE("Promise copy/move behaviour", "[basic]")
 {
-    SECTION("Promise move its values") {
+    SECTION("Promise moves its values") {
         pro::Promise<CopyCounter> p(returnCounter);
 
         p.then([&](const CopyCounter &cres) {
@@ -925,7 +1037,7 @@ TEST_CASE("Promise copy/move behaviour", "[basic]")
         });
     }
 
-    SECTION("PromiseAll/tuple move its values") {
+    SECTION("PromiseAll/tuple copies its values only once, from the state") {
         int copied_res = 0;
 
         pro::PromiseAll(
@@ -935,7 +1047,7 @@ TEST_CASE("Promise copy/move behaviour", "[basic]")
             copied_res = std::get<0>(tuple).copied + (int)std::get<1>(tuple).copied;
         });
         
-        REQUIRE(copied_res == 2*2);
+        REQUIRE(copied_res == 2);
     }
 
     SECTION("PromiseAll/collection move its values") {

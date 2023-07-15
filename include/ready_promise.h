@@ -18,11 +18,10 @@ namespace pro
 		}
 		/*
 		ReadyPromise(ReadyPromise<T>&& _promise) noexcept :
+			detail::_promise_base<T>(std::move(_promise)),
 			state(std::move(_promise.state)),
-			detail::_promise_base<T>(std::move(_promise)){
-			//state(std::move(_promise.state)),
-			//resolve_cb_list(std::move(_promise.resolve_cb_list)),
-			//reject_cb_list(std::move(_promise.reject_cb_list)){
+			resolve_cb_list(std::move(_promise.resolve_cb_list)),
+			reject_cb_list(std::move(_promise.reject_cb_list)){
 		}*/
 
 		typedef std::function<void(T)> _subscribed_callback;
@@ -73,7 +72,7 @@ namespace pro
 				}
 
 				if (eptr) {
-					state.set_rejected(eptr);
+					state.set_rejected(std::move(eptr));
 				}			
 			}
 
@@ -115,7 +114,7 @@ namespace pro
 					}
 
 					if (eptr) {
-						state.set_rejected(eptr);
+						state.set_rejected_asref(eptr);
 						return callback(T(), std::move(eptr));
 					}
 					else throw std::logic_error("ReadyPromise<T>.then(cb) unhandled control path");
@@ -155,10 +154,10 @@ namespace pro
 
 	private:
 		void _resolve(const T& value) {
-			state.set_resolved(value);
+			state.set_resolved_asref(value);
 		}
 		void _reject(const T& value) {
-			state.set_rejected(value);
+			state.set_rejected_asref(value);
 		}
 		void broadcast(const T& value, const std::list<_subscribed_callback> &list) {
 			for (const _subscribed_callback& cb : list)

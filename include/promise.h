@@ -115,7 +115,7 @@ namespace pro
 	public:
 		template<typename Function, typename... Args>
 		Promise(Function&& fun, Args&&... args) :
-			detail::_promise_base<void>(std::forward<Function>(fun), std::forward<Args>(args)...) {
+			_promise_base(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
 
 		Promise(std::future<void>&& _future) : 
@@ -209,9 +209,15 @@ namespace pro
 		}
 	};
 
-	template<typename T, typename Function, typename... Args>
+	template<typename T, typename Function, typename... Args,
+		typename = std::enable_if_t<std::is_invocable_r_v<T, Function, Args...>>>
 	constexpr Promise<T> make_promise(Function&& fun, Args&&... args) {
 		return Promise<T>(std::forward<Function>(fun), std::forward<Args>(args)...);
+	}
+
+	template<typename T, typename = std::enable_if_t<!std::is_same<T, void>::value, bool>>
+	constexpr Promise<T> make_rejected_promise(T rejection_value) {
+		return Promise<T>(std::make_exception_ptr(std::move(rejection_value)));
 	}
 }
 
