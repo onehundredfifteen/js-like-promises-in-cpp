@@ -8,12 +8,13 @@
 #include "./utils/concurrency_all.h"
 #include "./utils/concurrency_pack.h"
 #include "./utils/concurrency_race.h"
+#include "./utils/concurrency_any.h"
 
 namespace pro {
 
-	template<class Container, typename CT = promise_type_utils::collection_type_traits<Container> >
-		typename std::enable_if_t<type_utils::is_container<Container>::value,
-	Promise<typename CT::ReturnType>>
+	template<class Container, typename = std::enable_if_t<type_utils::is_container<Container>::value>,
+		typename CT = promise_type_utils::collection_type_traits<Container>>
+	promise<typename CT::ReturnType>
 	PromiseAll(Container& container)
 	{
 		return make_promise<CT::ReturnType>(
@@ -21,9 +22,8 @@ namespace pro {
 			std::move(container));
 	}
 
-	template<typename... Args>
-		typename std::enable_if_t<promise_type_utils::is_all_promise<Args...>::value,
-	Promise<std::tuple<typename Args::value_type...>> >
+	template<typename... Args, typename = std::enable_if_t<promise_type_utils::is_all_promise<Args...>::value>>
+	promise<std::tuple<typename Args::value_type...>> 
 	PromiseAll(Args &... tail)
 	{
 		return make_promise<std::tuple<typename Args::value_type...>>(
@@ -46,13 +46,23 @@ namespace pro {
 		);
 	}
 
-	template<class Container, typename CT = promise_type_utils::collection_type_traits<Container> >
-		typename std::enable_if_t<type_utils::is_container<Container>::value,
-	Promise<typename CT::ValueType>>
+	template<class Container, typename = std::enable_if_t<type_utils::is_container<Container>::value>,
+		typename CT = promise_type_utils::collection_type_traits<Container>>
+	promise<typename CT::ValueType>
 	PromiseRace(Container& container)
 	{
 		return make_promise<CT::ValueType>(
 			concurrency::concurrency_call_wrapper<concurrency::_promise_race<CT::PromiseType>, Container>::call_reduce,
+			std::move(container));
+	}
+
+	template<class Container, typename = std::enable_if_t<type_utils::is_container<Container>::value>,
+		typename CT = promise_type_utils::collection_type_traits<Container>>
+	promise<typename CT::ValueType>
+	PromiseAny(Container& container)
+	{
+		return make_promise<CT::ValueType>(
+			concurrency::concurrency_call_wrapper<concurrency::_promise_any<CT::PromiseType>, Container>::call_reduce,
 			std::move(container));
 	}
 }

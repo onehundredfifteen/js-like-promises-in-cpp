@@ -38,9 +38,9 @@ namespace pro
 					auto _begin = std::begin(pc);
 					auto _end = std::end(pc);
 
-					std::queue<std::unique_ptr<Promise<void>>> pp;
+					std::queue<std::unique_ptr<promise<void>>> pp;
 					for (auto it = _begin; it < _end; ++it) {
-						pp.push(std::make_unique<Promise<void>>(settle(*it, n++)));
+						pp.push(std::make_unique<promise<void>>(settle(*it, n++)));
 					}
 				}
 
@@ -67,16 +67,16 @@ namespace pro
 						yield_results = true;
 				}
 
-				Promise<void> settle(P& promise, unsigned int idx) {
+				promise<void> settle(P& _promise, unsigned int idx) {
 					auto resolveBound = std::bind(&_promise_concurrency_base<P, yieldArray>::_resolve, this, std::placeholders::_1, idx);
 					auto rejectBound = std::bind(&_promise_concurrency_base<P, yieldArray>::_reject, this, std::placeholders::_1, idx);
 					auto rejectExBound = std::bind(&_promise_concurrency_base<P, yieldArray>::_reject_ex, this, std::placeholders::_1, idx);
 
-					if (false == promise.valid()) {
+					if (false == _promise.valid()) {
 						//_reject_ex(idx, make_exception_ptr(std::invalid_argument("Invalidated promise")));
 					}
 
-					return promise.then(resolveBound, rejectBound, rejectExBound);
+					return _promise.then(resolveBound, rejectBound, rejectExBound);
 				}
 
 				void wait() {
@@ -86,33 +86,11 @@ namespace pro
 					}
 				}
 
-				virtual YieldType yield() = 0;
-
-				std::vector<Result> resultsToVector() {
-					std::vector<Result> vec(results.size());
-
-					while (false == results.empty()) {
-						auto el = results.pop();
-						vec[std::get<0>(el)] = std::move(std::get<1>(el));
-					}
-
-					return vec;
-				}
-				/*
-				std::vector<Result> rejectionsToVector(unsigned int size) {
-					std::vector<Result> vec(size);
-
-					while (false == rejection_results.empty()) {
-						auto el = rejection_results.pop();
-						vec[std::get<0>(el)] = std::get<1>(el);
-					}
-
-					return vec;
-				}*/
+				virtual YieldType yield() = 0;		
 			};
 
 			template <>
-			struct _promise_concurrency_base<Promise<void>, false>
+			struct _promise_concurrency_base<promise<void>, false>
 			{
 				bool yield_results;
 				const unsigned int res_limit;
@@ -132,9 +110,9 @@ namespace pro
 					auto _begin = std::begin(pc);
 					auto _end = std::end(pc);
 
-					std::queue<std::unique_ptr<Promise<void>>> pp;
+					std::queue<std::unique_ptr<promise<void>>> pp;
 					for (auto it = _begin; it < _end; ++it) {
-						pp.push(std::make_unique<Promise<void>>(settle(*it, n++)));
+						pp.push(std::make_unique<promise<void>>(settle(*it, n++)));
 					}
 				}
 
@@ -159,16 +137,16 @@ namespace pro
 						yield_results = true;
 				}
 
-				Promise<void> settle(Promise<void>& promise, unsigned int idx) {
-					auto resolveBound = std::bind(&_promise_concurrency_base<Promise<void>, false>::_resolve, this);
-					auto rejectBound = std::bind(&_promise_concurrency_base<Promise<void>, false>::_reject, this, idx);
-					auto rejectExBound = std::bind(&_promise_concurrency_base<Promise<void>, false>::_reject_ex, this, std::placeholders::_1, idx);
+				promise<void> settle(promise<void>& _promise, unsigned int idx) {
+					auto resolveBound = std::bind(&_promise_concurrency_base<promise<void>, false>::_resolve, this);
+					auto rejectBound = std::bind(&_promise_concurrency_base<promise<void>, false>::_reject, this, idx);
+					auto rejectExBound = std::bind(&_promise_concurrency_base<promise<void>, false>::_reject_ex, this, std::placeholders::_1, idx);
 
-					if (false == promise.valid()) {
+					if (false == _promise.valid()) {
 						//_reject_ex(idx, make_exception_ptr(std::invalid_argument("Invalidated promise")));
 					}
 
-					return promise.then(resolveBound, rejectBound, rejectExBound);
+					return _promise.then(resolveBound, rejectBound, rejectExBound);
 				}
 
 				void wait() {
@@ -198,10 +176,7 @@ namespace pro
 
 			static typename CT::ValueType call_reduce(Container&& collection) {
 				if (std::size(collection) == 0) {
-					if constexpr (std::is_same<CT::ValueType, void>::value)
-						return;
-					else
-						return CT::ValueType();
+					throw std::range_error("Empty collection passed");
 				}
 
 				Method states(collection);

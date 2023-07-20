@@ -6,15 +6,14 @@
 
 namespace pro
 {
-	template<typename T>
-	//, std::enable_if_t<std::is_void<T>::value, bool> = false>
-	class ReadyPromise : public detail::_promise_base<T> {
+	template<typename T, typename = std::enable_if_t<!std::is_void<T>::value> >
+	class readypromise : public detail::_promise_base<T> {
 	public:
 		template<typename Function, typename... Args>
-		ReadyPromise(Function&& fun, Args&&... args) :
+		readypromise(Function&& fun, Args&&... args) :
 			detail::_promise_base<T>(std::forward<Function>(fun), std::forward<Args>(args)...) {
-			onResolve(std::bind(&ReadyPromise<T>::_resolve, this, std::placeholders::_1));
-			onReject(std::bind(&ReadyPromise<T>::_reject, this, std::placeholders::_1));
+			onResolve(std::bind(&readypromise<T>::_resolve, this, std::placeholders::_1));
+			onReject(std::bind(&readypromise<T>::_reject, this, std::placeholders::_1));
 		}
 		/*
 		ReadyPromise(ReadyPromise<T>&& _promise) noexcept :
@@ -77,22 +76,11 @@ namespace pro
 			}
 
 			return state.get_value();
-		}
-		
-		
-		/*
-		T get() const {
-			if (false == this->ready()) {
-				throw std::future_error(make_error_code(std::future_errc::no_state));
-			}
-			else {
-				return state.get_value();
-			}
-		}*/
+		}	
 
 		template<typename Cb, typename Result = std::invoke_result_t<Cb, T, std::exception_ptr>>
-		Promise<Result> then(Cb&& callback) {
-			return Promise<Result>(
+		promise<Result> then(Cb&& callback) {
+			return promise<Result>(
 				[future = std::move(this->future), this, callback]() mutable {
 					std::exception_ptr eptr;
 					try {
@@ -117,40 +105,10 @@ namespace pro
 						state.set_rejected_asref(eptr);
 						return callback(T(), std::move(eptr));
 					}
-					else throw std::logic_error("ReadyPromise<T>.then(cb) unhandled control path");
+					else throw std::logic_error("readypromise<T>.then(cb) unhandled control path");
 				}
 			);
-		}
-
-
-		/*
-		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb>>
-		//typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb>>::value>,
-		//typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
-		auto then(Cb&& callback, RCb&& rejectCallback, ExCb&& exceptionCallback) -> decltype(Promise<Result>) {
-			auto resolveBound = std::bind(&ReadyPromise<T>::_resolve, this, std::placeholders::_1);
-			auto rejectBound = std::bind(&ReadyPromise<T>::_reject, this, std::placeholders::_1);
-			auto rejectExBound = std::bind(&ReadyPromise<T>::_reject_ex, this, std::placeholders::_1);
-
-			auto rb = std::bind(&callback, resolveBound);
-
-
-			return Promise<T>::then(std::forward<Cb>(rb), std::forward<RCb>(rejectCallback), std::forward<ExCb>(exceptionCallback));
-		}
-		
-		template<typename Cb, typename Result = std::invoke_result_t<Cb>>
-		//typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb>>::value>,
-		//typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<ExCb, std::exception_ptr>>::value >>
-		Promise<Result> then(Cb&& callback) {
-			auto resolveBound = std::bind(&ReadyPromise<T>::_resolve, this, std::placeholders::_1);
-			//auto rejectBound = std::bind(&ReadyPromise<T>::_reject, this, std::placeholders::_1);
-			//auto rejectExBound = std::bind(&ReadyPromise<T>::_reject_ex, this, std::placeholders::_1);
-			
-			//auto rb = std::bind(&callback, resolveBound);
-
-
-			return Promise<T>::then(std::forward<Cb>(callback));
-		}*/
+		} 
 
 	private:
 		void _resolve(const T& value) {

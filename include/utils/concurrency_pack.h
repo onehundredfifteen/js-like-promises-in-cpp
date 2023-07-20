@@ -101,7 +101,7 @@ namespace pro
 					auto rejectBound = std::bind(&_promise_collection<P, _Promises...>::_reject, &collection, std::placeholders::_1);
 					auto rejectExBound = std::bind(&_promise_collection<P, _Promises...>::_reject_ex, &collection, std::placeholders::_1);
 
-					if constexpr (std::is_same<P, ReadyPromise<P::value_type>>::value) {
+					if constexpr (std::is_same<P, readypromise<P::value_type>>::value) {
 						return std::tuple_cat(std::make_tuple(P::value_type()), _get_helper<idx - 1, _promise_collection<_Promises ...>>::settle(collection.rest));
 					}
 					//an invalid Promise will set a default value

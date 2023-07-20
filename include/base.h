@@ -68,7 +68,7 @@ namespace pro
 				executor.submit(*this);
 			}
 
-			template <typename U = T, std::enable_if_t<!std::is_same<U, void>::value, bool> = true>
+			template <typename U = T, std::enable_if_t<!std::is_same<U, void>::value, bool> = true >
 			constexpr void resolve(U value) {
 				std::promise<T> _promise;
 				this->future = _promise.get_future();

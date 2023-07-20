@@ -87,7 +87,7 @@ namespace pro {
     namespace promise_type_utils {
 
         template <typename... Args>
-        using is_all_promise = std::integral_constant<bool, (std::is_same_v<Args, pro::Promise<typename Args::value_type>> && ...)>;
+        using is_all_promise = std::integral_constant<bool, (std::is_same_v<Args, pro::promise<typename Args::value_type>> && ...)>;
 
         template <typename Container>
         struct collection_type_traits {

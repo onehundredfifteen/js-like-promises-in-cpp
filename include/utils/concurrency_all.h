@@ -13,6 +13,7 @@ namespace pro
 		struct _promise_all : private detail::_promise_concurrency_base<P, true>
 		{
 			using YieldType = typename detail::_promise_concurrency_base<P, true>::YieldType;
+			using Result = typename detail::_promise_concurrency_base<P, true>::Result;
 
 			template <typename PromiseContainer>
 			_promise_all(PromiseContainer&& pc)
@@ -36,15 +37,26 @@ namespace pro
 
 				return resultsToVector();
 			}
+
+			std::vector<Result> resultsToVector() {
+				std::vector<Result> vec(results.size());
+
+				while (false == results.empty()) {
+					auto el = results.pop();
+					vec[std::get<0>(el)] = std::move(std::get<1>(el));
+				}
+
+				return vec;
+			}
 		};
 
 		template <>
-		struct _promise_all<Promise<void>> 
-			: detail::_promise_concurrency_base<Promise<void>, false>
+		struct _promise_all<promise<void>> 
+			: detail::_promise_concurrency_base<promise<void>, false>
 		{
 			template <typename PromiseContainer>
 			_promise_all(PromiseContainer&& pc)
-				: detail::_promise_concurrency_base<Promise<void>, false>(pc, std::size(pc), 1) {}
+				: detail::_promise_concurrency_base<promise<void>, false>(pc, std::size(pc), 1) {}
 
 			void yield() override 
 			{
