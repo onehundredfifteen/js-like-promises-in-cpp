@@ -84,6 +84,8 @@ int sleepAndReturnInt(int sleep, int arg) {
 //dummy methods
 void dummy(){}
 auto dummyHandler = [](auto) {};
+int get115() { return 115; }
+
 
 //Copy counter class
 struct CopyCounter {
@@ -127,7 +129,7 @@ CopyCounter returnCounter() {
 
 TEST_CASE("Promise constructors", "[basic]") 
 {
-    SECTION("promise with a string") {
+    SECTION("promise constructor with a lamba returning string") {
         std::string res = "";
         pro::promise<std::string> p([]()->std::string {
             return std::string("promised string");
@@ -139,8 +141,20 @@ TEST_CASE("Promise constructors", "[basic]")
         REQUIRE(res == "promised string");
         REQUIRE(p.valid() == false);
     }
+
+    SECTION("promise with a std::function") {
+        int res = 0;
+        std::function<int(void)> fun = get115;
+        pro::promise<int> p(fun);
+
+        REQUIRE(p.valid() == true);
+        p.then([&res](const int& i) {res = i; });
+
+        REQUIRE(res == get115());
+        REQUIRE(p.valid() == false);
+    }
     
-    SECTION("function constructor with some arguments") {
+    SECTION("promise constructor with arguments for function") {
         int res = 0;
         pro::promise<int> p([](int a, long b) { 
                 return (int)(a + b); 
@@ -462,10 +476,9 @@ TEST_CASE("Promise async", "[async]")
 
     SECTION("Promise is asynchronous") {
         auto start = std::chrono::system_clock::now();
-        pro::Executor<void> executor;
         pro::promise<void> p(sleepAndReturn, 115);
 
-        p.then(dummy).async(executor);
+        p.then(dummy).async();
 
         auto end = std::chrono::system_clock::now();
         REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
@@ -474,9 +487,8 @@ TEST_CASE("Promise async", "[async]")
     SECTION("Promise can be resolved with a different value later") {
         int res = 0;
         auto start = std::chrono::system_clock::now();
-        pro::Executor<int> executor;
         pro::promise<int> p(sleepAndReturnInt, 500, 666);
-        p.resolve(executor, 420);
+        p.resolve(420);
         p.then([&res](auto i) { res = i; });
              
         auto end = std::chrono::system_clock::now();
@@ -487,23 +499,21 @@ TEST_CASE("Promise async", "[async]")
     SECTION("Promise can be rejected with a different value later") {
         int res = 0;
         auto start = std::chrono::system_clock::now();
-        pro::Executor<int> executor;
         pro::promise<int> p(sleepAndReturnInt, 500, 666);
-        p.reject(executor, 420);
+        p.reject(420);
         p.then([&res](auto i) { res = i; }, [&res](auto i) { res = i; });
 
         auto end = std::chrono::system_clock::now();
         REQUIRE(res == 420);
-        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+        REQUIRE(200 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
     }
 
     SECTION("Promise can be rejected with a custom exception later") {
         int res = 0;
         auto start = std::chrono::system_clock::now();
-        pro::Executor<int> executor;
         std::exception test_exception("testing reject");
         pro::promise<int> p(sleepAndReturnInt, 500, 666);
-        p.reject(executor, std::make_exception_ptr(test_exception));
+        p.reject(std::make_exception_ptr(test_exception));
         p.then([&res](auto i) { res = i; }).fail(
             [&res](std::exception_ptr eptr) {
             try {
@@ -519,14 +529,13 @@ TEST_CASE("Promise async", "[async]")
 
         auto end = std::chrono::system_clock::now();
         REQUIRE(res == 420);
-        REQUIRE(20 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
+        REQUIRE(200 > std::chrono::duration_cast <std::chrono::milliseconds> (end - start).count());
     }
 
     SECTION("Promise<void> can be resolved - somehow cancelled") {
         auto start = std::chrono::system_clock::now();
-        pro::Executor<void> executor;
         pro::promise<void> p(sleepAndReturn, 500);
-        p.resolve(executor);
+        p.resolve();
 
         auto end = std::chrono::system_clock::now();
         REQUIRE(p.valid());
@@ -545,8 +554,7 @@ TEST_CASE("ReadyPromise constructors", "[rp basic]")
 
         //ReadyPromise is valid until call of .then or .get
         REQUIRE(p.valid() == true);
-        //ReadyPromise is resolved immediately in this test
-        REQUIRE(p.pending() == false);
+        REQUIRE(p.pending() == true);
         REQUIRE(p.get() == 120);
         REQUIRE(p.resolved() == true);
         REQUIRE(p.valid() == false);

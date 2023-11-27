@@ -1,15 +1,14 @@
-# c++ Promises
+# C++ Promises
 Call your C++ methods asynchronously as easy as you do it in Java or JavaScript ES6.
 
-This library defines a **pro::promise** object implementation that is
-+ basically a wrapper over a **std::future** object
+This library defines a **pro::promise** object implementation that
++ is basically a wrapper over a **std::future** object
 + provides a __continuation__ and __chaining__ functionalities
 + introduces out-of-the-box aynchronous features in your application
 + allows to handle exceptions easily
-+ increases code readability
 
 ## Quick overview
-If you are familiar with javascript [Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/then) such as: 
+If you are familiar with JAVA [CompletableFuture](https://www.baeldung.com/java-completablefuture) or javascript [Promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/then) such as: 
 ```javascript
 var p1 = new Promise((resolve, reject) => {
   resolve('Success!'); // or reject(new Error("Error!"));
@@ -21,18 +20,7 @@ p1.then(value => {
   console.error(reason); // Error!
 });
 ```
-or JAVA 8 [CompletableFuture](https://www.baeldung.com/java-completablefuture):
-```java
-CompletableFuture<String> p1 = CompletableFuture.supplyAsync(() -> "Success");
-p1.whenComplete((result, ex) -> {
-  if(ex == null){
-      System.out.println(result);
-  }
-  else System.out.println(ex);
-})
-```
-
-You would like the C++ way to write it down:
+You would love the C++ way to write it down:
 ```cpp
 pro::promise<std::string> p1([]()->std::string {
   return "Success!";
@@ -57,10 +45,19 @@ pro::make_promise<std::string>([]()->std::string {
 	std::cout << value << std::endl; // Success!
 });
 ```
+You may find waiting methods handy:
+```cpp
+pro::promise<int> p1([] { return 13; });
+pro::promise<std::string> p2([] { return std::string("promised string"); });
+
+pro::PromiseAll(p1, p2).then(
+     [](auto tuple) { std::cout << std::get<0>(tuple) << std::get<1>(tuple) << std::endl; }
+);
+```
 
 ## Promise object
 A **pro::promise** object is a wrapper over a **std::future**.
-You can create one using any __invocable__ entity which you want to run such as a function, a lambda expression or a **std::function** wrapper.
+You can create one using any __invocable__ entity which you want to run such as a method, a lambda expression or a **std::function** wrapper.
 Provided method will launch immediately and you can define how to receive the result - in [sync or async](#blocking) way.
 If your method accepts some parameters, pass them in during **promise** construction.
 
@@ -112,6 +109,8 @@ pro::promise<int> p_rejected(std::make_exception_ptr(115));
 You can chain consecutive promises. **.then()** and **.fail()** methods are returning a new promise object.
 Promise result type is evaluated by the return type of the passed callback.
 Exceptions are propagating down the stream unless handled by a proper callback method.
+Promise would move your object through instead of copying it, so don't bother using references as your function parameters.
+
 ```cpp
 pro::promise<int> p([]()->int { return 1; });
 
@@ -151,8 +150,7 @@ p.then([](int code) {
 }).then([](int c) { 
 	std::cout << "My promise resolved with the code:" << c << std::endl; 
   throw std::invalid_argument("test");
-},
-[](int c) { 
+},[](int c) { 
 	std::cout << "My promise rejected with the code:"  << c << std::endl; 
 }).fail([](std::exception_ptr eptr){
   try {
@@ -227,7 +225,7 @@ The PromiseRace() static method takes an iterable of promises&lt;T&gt; as input 
 
 ## <a name="blocking"></a>Blocking problem
 To run your method asynchronously you have to store the last promise object from the chain in the same scope, because it'll block until can be destroyed.
-However you can delegate it using executor&lt;T&gt; object as _.async_ method parameter.
+However you can delegate it using _.async_ method.
 PromiseAll methods even in blocking mode can process passed iterables asynchronously.
 
 ```cpp
@@ -238,9 +236,8 @@ void sleepAndReturn(int sleep) {
 pro::promise<void> p1(sleepAndReturn, 115);
 auto pp = p1.then(...); //this is async
 
-pro::executor<void> my_executor;
 pro::promise<void> p2(sleepAndReturn, 115);
-p2.then(...).async(my_executor); //this is async
+p2.then(...).async(); //this is async
 
 pro::promise<void> p3(sleepAndReturn, 115);
 p3.then(...); //this is blocking 

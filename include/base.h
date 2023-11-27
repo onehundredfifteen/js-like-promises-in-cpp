@@ -3,14 +3,11 @@
 #define PROMISE_BASE_INCLUDED
 
 #include <future>
-#include <list>
 #include <variant>
+#include "./pool.h"
 
 namespace pro
 {
-	template<typename T>
-	class Executor;
-
 	namespace detail 
 	{
 		template<typename T>
@@ -64,57 +61,36 @@ namespace pro
 				return this->future.share();
 			}
 
-			void async(Executor<T> &executor) {
-				executor.submit(*this);
-			}
-
-			template <typename U = T, std::enable_if_t<!std::is_same<U, void>::value, bool> = true >
-			constexpr void resolve(U value) {
-				std::promise<T> _promise;
-				this->future = _promise.get_future();
-				_promise.set_value(std::move(value));
+			void async() {
+				pool_container::instance().submit<T>(*this);
 			}
 
 			template <typename U = T, std::enable_if_t<!std::is_same<U, void>::value, bool> = true>
-			constexpr void resolve(Executor<U>& executor, U value) {
-				_promise_base<T> _pb(std::move(this->future));
-				_pb.async(executor);
-				this->resolve(std::move(value));
+			constexpr void resolve(U value) {
+				detach_and_reset().set_value(std::move(value));
 			}
-
+			
 			template <typename U = T, std::enable_if_t<std::is_same<U, void>::value, bool> = true>
-			constexpr void resolve(Executor<U>& executor) {
-				_promise_base<U> _pb(std::move(this->future));
-				_pb.async(executor);
-				std::promise<T> _promise;
-				this->future = _promise.get_future();
-				_promise.set_value();
+			constexpr void resolve() {
+				detach_and_reset().set_value();
 			}
 
 			template <typename U = T, std::enable_if_t<!std::is_same<U, void>::value, bool> = true>
 			constexpr void reject(U value) {
+				detach_and_reset().set_exception(std::make_exception_ptr(std::move(value)));
+			}
+
+			void reject(std::exception_ptr eptr) {	
+				detach_and_reset().set_exception(std::move(eptr));
+			}
+
+		private:
+			std::promise<T> detach_and_reset() {
 				std::promise<T> _promise;
-				this->future = _promise.get_future();
-				_promise.set_exception(std::make_exception_ptr(std::move(value)));
-			}
-
-			template <typename U = T, std::enable_if_t<!std::is_same<U, void>::value, bool> = true>
-			constexpr void reject(Executor<U>& executor, U value) {
 				_promise_base<T> _pb(std::move(this->future));
-				_pb.async(executor);
-				this->reject(std::move(value));
-			}
-
-			void reject(std::exception_ptr eptr) {
-				std::promise<T> _promise;
+				_pb.async();
 				this->future = _promise.get_future();
-				_promise.set_exception(std::move(eptr));
-			}
-
-			void reject(Executor<T>& executor, std::exception_ptr eptr) {
-				_promise_base<T> _pb(std::move(this->future));
-				_pb.async(executor);
-				this->reject(std::move(eptr));
+				return _promise;
 			}
 
 		protected:
@@ -188,16 +164,6 @@ namespace pro
 			std::variant<std::monostate, T, std::exception_ptr> value;
 		};
 	}
-
-	template<typename T>
-	class Executor {
-	private:
-		std::list<std::unique_ptr<detail::_promise_base<T>>> pool;
-	public:
-		void submit(detail::_promise_base<T> &promise) {
-			pool.emplace_back(std::make_unique<detail::_promise_base<T>>(std::move(promise)));
-		}
-	};
 }
 
 #endif //PROMISE_BASE_INCLUDED
