@@ -13,6 +13,10 @@ namespace pro
 		promise(Function&& fun, Args&&... args) :
 			detail::_promise_base<T>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
+
+		promise(const std::function<void(std::promise<T>)>& fun) :
+			detail::_promise_base<T>(std::forward<std::function<void(std::promise<T>)>(fun)) {
+		}
 		
 		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb, T>,
 		typename = std::enable_if_t<std::is_same<Result, std::invoke_result_t<RCb, T>>::value>,

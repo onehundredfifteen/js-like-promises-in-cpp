@@ -199,6 +199,23 @@ TEST_CASE("Promise constructors", "[basic]")
         REQUIRE(p.valid() == false);
     }
 
+    SECTION("externally resolvable constructor") {
+        int res = 0;
+        std::function<void(std::promise<int>)> fun = [](std::promise<int> resolver) {
+            auto inner = [&resolver](int a) {
+                resolver.set_value(a);
+            };
+            inner(115);
+        };
+        pro::promise<int> p(fun);
+
+        REQUIRE(p.valid() == true);
+        p.then([&res](int i) {res = i; });
+
+        REQUIRE(res == 115);
+        REQUIRE(p.valid() == false);
+    }
+
     SECTION("making a promise") {
         int res = 0;
         auto p = pro::make_promise<int>([](int a, long b) {

@@ -17,9 +17,15 @@ namespace pro
 
 			template<typename Function, typename... Args,
 				typename = std::enable_if_t<std::is_invocable_r_v<T, Function, Args...>> >
-			_promise_base(Function&& fun, Args&&... args):
+			_promise_base(Function&& fun, Args&&... args) :
 				future(std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...)) {
-			}		
+			}
+			_promise_base(const std::function<void(std::promise<T>)>& fun) {
+				std::promise<T> resolving_promise;
+				future = resolving_promise.get_future();
+				std::thread t(fun, std::move(resolving_promise));
+				t.detach();
+			}
 			_promise_base(_promise_base<T>&& _promise) noexcept :
 				future(std::move(_promise.future)) {
 			}
