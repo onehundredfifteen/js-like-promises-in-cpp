@@ -3,6 +3,7 @@
 #define READY_PROMISE_INCLUDED
 
 #include "./promise.h"
+#include "./state.h"
 
 namespace pro
 {
