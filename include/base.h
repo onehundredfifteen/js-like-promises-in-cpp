@@ -14,16 +14,18 @@ namespace pro
 		class _promise_base {
 		public:
 			using value_type = T;
+			using resolver_type = std::promise<T>;
+			using resolver_fn_type = std::function<void(resolver_type)>;
 
 			template<typename Function, typename... Args,
 				typename = std::enable_if_t<std::is_invocable_r_v<T, Function, Args...>> >
 			_promise_base(Function&& fun, Args&&... args) :
 				future(std::async(std::launch::async, std::forward<Function>(fun), std::forward<Args>(args)...)) {
 			}
-			_promise_base(const std::function<void(std::promise<T>)>& fun) {
-				std::promise<T> resolving_promise;
-				future = resolving_promise.get_future();
-				std::thread t(fun, std::move(resolving_promise));
+			_promise_base(const resolver_fn_type& fun) {
+				resolver_type resolver;
+				this->future = resolver.get_future();
+				std::thread t(fun, std::move(resolver));
 				t.detach();
 			}
 			_promise_base(_promise_base<T>&& _promise) noexcept :

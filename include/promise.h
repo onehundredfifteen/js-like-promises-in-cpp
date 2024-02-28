@@ -9,13 +9,16 @@ namespace pro
 	template<typename T>
 	class promise : public detail::_promise_base<T> {
 	public:
+		using resolver_type = detail::_promise_base<T>::resolver_type;
+		using resolver_fn_type = detail::_promise_base<T>::resolver_fn_type;
+
 		template<typename Function, typename... Args>
 		promise(Function&& fun, Args&&... args) :
 			detail::_promise_base<T>(std::forward<Function>(fun), std::forward<Args>(args)...) {
 		}
 
-		promise(const std::function<void(std::promise<T>)>& fun) :
-			detail::_promise_base<T>(std::forward<std::function<void(std::promise<T>)>(fun)) {
+		promise(const resolver_fn_type& fun) :
+			detail::_promise_base<T>(std::forward<resolver_fn_type>(fun)) {
 		}
 		
 		template<typename Cb, typename RCb, typename ExCb, typename Result = std::invoke_result_t<Cb, T>,

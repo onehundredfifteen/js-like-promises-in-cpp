@@ -201,7 +201,7 @@ TEST_CASE("Promise constructors", "[basic]")
 
     SECTION("externally resolvable constructor") {
         int res = 0;
-        std::function<void(std::promise<int>)> fun = [](std::promise<int> resolver) {
+        pro::promise<int>::resolver_fn_type fun = [](std::promise<int> resolver) {
             auto inner = [&resolver](int a) {
                 resolver.set_value(a);
             };
@@ -211,6 +211,27 @@ TEST_CASE("Promise constructors", "[basic]")
 
         REQUIRE(p.valid() == true);
         p.then([&res](int i) {res = i; });
+
+        REQUIRE(res == 115);
+        REQUIRE(p.valid() == false);
+    }
+
+    SECTION("externally resolvable constructor - rejection") {
+        int res = 0;
+        std::function<void(std::promise<int>)> fun = [](std::promise<int> resolver) {
+            auto inner = [&resolver](int a) {
+                resolver.set_exception(std::make_exception_ptr(a));
+            };
+            inner(115);
+        };
+        pro::promise<int> p(fun);
+
+        REQUIRE(p.valid() == true);
+        p.fail([&res](int i) {
+            res = i;
+        }, [&res](std::exception_ptr eptr) {
+            res = 420;
+        });
 
         REQUIRE(res == 115);
         REQUIRE(p.valid() == false);
@@ -468,6 +489,15 @@ TEST_CASE("Promise error propagation", "[exceptions]")
 
 TEST_CASE("Promise async", "[async]")
 {
+    SECTION("Promise invokes its function without handling results") {
+        int res = 0;
+        pro::promise<void> p([&res](){
+            res = 115;
+        });
+        sleepAndReturn(25);
+
+        REQUIRE(res == 115);
+    }
     /*tests should take no longer than 20ms, 
       despite promise sleeping for much longer time
      */

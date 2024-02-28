@@ -87,10 +87,10 @@ check = p.valid(); //false
 ### I want to resolve/reject promises using an object!
 I'm aware that my implementation differs from Javascript' Promise(resolve, reject) => {} approach and it can't be enough sometimes.
 That's why a special constructor was introduced to cover such cases.
-Passing a method accepting a _std::promise&lt;T&gt;_ as a parameter allows you to resolve or reject the promise from anywhere inside the method's body:
+Passing a method accepting a **std::promise&lt;T&gt;** as a parameter allows you to resolve or reject the promise from anywhere inside the method's body:
 
 ```cpp
-std::function<void(std::promise<int>)> fun = [](std::promise<int> resolver) {
+pro::promise<int>::resolver_fn_type fun = [](std::promise<int> resolver) {
      auto inner = [&resolver](int a) {
           resolver.set_value(a); //to resolve
           //resolver.set_exception(std::make_exception_ptr(a)); //to reject
@@ -99,7 +99,8 @@ std::function<void(std::promise<int>)> fun = [](std::promise<int> resolver) {
 };
 pro::promise<int> p(fun); //will resolve with 115
 ```
-Remember to set promise value only once. Further attempts will yield broken promise error!
+**pro::promise&lt;int&gt;::resolver_fn_type** stands for **std::function&lt;void(std::promise&lt;int&gt;)&gt;** \
+Remember to set promise value only once. Further attempts will yield _'promise already satisfied'_ error!
 
 ### Constructor overloads and operators
 You can create a promise from given **std::future** therefore from a **std::promise**:
