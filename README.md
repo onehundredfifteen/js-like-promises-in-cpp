@@ -57,7 +57,7 @@ pro::PromiseAll(p1, p2).then(
 
 ## Promise object
 A **pro::promise** object is a wrapper over a **std::future**.
-You can create one using any __invocable__ entity which you want to run such as a method, a lambda expression or a **std::function** wrapper.
+You can create one using any __invocable__ entity which you want to run such as a method, a lambda expression or a **std::function** wrapper. \
 Provided method will launch immediately and you can define how to receive the result - in [sync or async](#blocking) way.
 If your method accepts some parameters, pass them in during **promise** construction.
 
@@ -85,8 +85,8 @@ check = p.valid(); //false
 ```
 
 ### I want to resolve/reject promises using an object!
-I'm aware that my implementation differs from Javascript' Promise(resolve, reject) => {} approach and it can't be enough sometimes.
-That's why a special constructor was introduced to cover such cases.
+I'm aware that my implementation differs from Javascript' _Promise(resolve, reject) => {}_ approach and it can't be enough sometimes.
+That's why a special constructor was introduced to cover such cases. \
 Passing a method accepting a **std::promise&lt;T&gt;** as a parameter allows you to resolve or reject the promise from anywhere inside the method's body:
 
 ```cpp
@@ -125,9 +125,9 @@ pro::promise<int> p_rejected(std::make_exception_ptr(115));
 
 ## <a name="then"></a>Chaining promises
 You can chain consecutive promises. **.then()** and **.fail()** methods are returning a new promise object.
-Promise result type is evaluated by the return type of the passed callback.
-Exceptions are propagating down the stream unless handled by a proper callback method.
-Promise would move your object through instead of copying it, so don't bother using references as your function parameters.
+Promise result type is evaluated by the return type of the passed callback. \
+Exceptions are propagating down the stream unless handled by a proper callback method. \
+Promise would _move_ your object through instead of copying it, so don't bother using references as your function parameters.
 
 ```cpp
 pro::promise<int> p([]()->int { return 1; });
@@ -244,7 +244,7 @@ The PromiseRace() static method takes an iterable of promises&lt;T&gt; as input 
 
 ## <a name="blocking"></a>Blocking problem
 To run your method asynchronously you have to store the last promise object from the chain in the same scope, because it'll block until can be destroyed.
-However you can delegate it using _.async_ method.
+However you can delegate it using _.async_ method. \
 PromiseAll methods even in blocking mode can process passed iterables asynchronously.
 
 ```cpp
