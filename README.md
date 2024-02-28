@@ -206,6 +206,7 @@ There is another way to achieve this by invoking _.resolve_ and _.reject_ method
 Check test.cpp file for more examples.
 
 ## pro::promise static methods
+(include file "util.h")  \
 You may have to convert more promises into a single one:
 
 ### PromiseAll
@@ -262,9 +263,16 @@ p3.then(...); //this is blocking
 ```
 
 ## How to install
-Just download and include "promise.h" or "ready_promise.h" in your project (use *pro* namespace)
+Just download and include the file **"promise.h"** in your project (use *pro* namespace). \
+To use static methods like _PromiseAll_, include "util.h". \ 
+If you want to try an experimental promise with a state and subscribers, include "ready_promise.h".
 
-This is a proof of concept for now, so it does have many caveats.
+```cpp
+#include "promise.h" //promise objects
+#include "util.h" //PromiseAll, PromiseAny, PromiseRace
+```
 
-For code samples, check **tests.cpp**
-There is 164 assertions in 12 test cases.
+This is a proof of concept for now, so it does have some caveats.
+
+For code samples, check **tests.cpp**. \
+There are 169 assertions in 12 test cases.
